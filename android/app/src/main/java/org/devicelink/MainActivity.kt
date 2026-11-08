@@ -16,64 +16,130 @@ import android.widget.TextView
 import org.devicelink.core.peer.PeerService
 
 /**
- * Temporary controls for the Android peer service lifecycle.
- * Device discovery and peer connections are not implemented yet.
+ * Initial DeviceLink controls. Peer discovery and device connections are not implemented yet.
  */
 class MainActivity : Activity() {
 
+    private lateinit var root: LinearLayout
     private lateinit var status: TextView
     private var startAfterPermissionGrant = false
+    private var showingPermissionScreen = false
+
+    private val preferences by lazy {
+        getSharedPreferences("devicelink_setup", MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val title = TextView(this).apply {
-            text = "DeviceLink"
-            textSize = 26f
-        }
-        val explanation = TextView(this).apply {
-            text = "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. Non cerca ancora altri dispositivi e non crea connessioni."
-            textSize = 16f
-        }
-        status = TextView(this).apply {
-            textSize = 15f
-        }
-        val startButton = Button(this).apply {
-            text = "Avvia servizio"
-            setOnClickListener { requestNotificationPermissionAndStart() }
-        }
-        val stopButton = Button(this).apply {
-            text = "Arresta servizio"
-            setOnClickListener {
-                val intent = Intent(this@MainActivity, PeerService::class.java)
-                    .setAction(PeerService.ACTION_STOP)
-                startService(intent)
-                status.text = "Richiesta di arresto inviata."
-            }
-        }
-        val settingsButton = Button(this).apply {
-            text = "Impostazioni notifiche"
-            setOnClickListener { openNotificationSettings() }
-        }
-
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(32, 48, 32, 32)
-            addView(title)
-            addView(explanation)
-            addView(status)
-            addView(startButton)
-            addView(stopButton)
-            addView(settingsButton)
-        }
-        setContentView(content)
-        updateNotificationStatus()
+        showHome()
+        requestFirstLaunchNotificationPermission()
     }
 
     override fun onResume() {
         super.onResume()
-        if (::status.isInitialized) updateNotificationStatus()
+        if (::root.isInitialized) {
+            if (showingPermissionScreen) showPermissionScreen() else updateHomeStatus()
+        }
+    }
+
+    private fun createRoot(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_HORIZONTAL
+        setPadding(32, 48, 32, 32)
+    }
+
+    private fun addText(parent: LinearLayout, value: String, size: Float = 16f): TextView =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setPadding(0, 8, 0, 8)
+            parent.addView(this)
+        }
+
+    private fun addButton(parent: LinearLayout, label: String, action: () -> Unit) {
+        parent.addView(Button(this).apply {
+            text = label
+            setOnClickListener { action() }
+        })
+    }
+
+    private fun showHome() {
+        showingPermissionScreen = false
+        root = createRoot()
+        addText(root, "DeviceLink", 26f)
+        addText(
+            root,
+            "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
+        )
+        status = addText(root, "")
+        addButton(root, "Avvia servizio") { requestNotificationPermissionAndStart() }
+        addButton(root, "Arresta servizio") {
+            val intent = Intent(this, PeerService::class.java).setAction(PeerService.ACTION_STOP)
+            startService(intent)
+            status.text = "Richiesta di arresto inviata."
+        }
+        addButton(root, "Controllo permessi") { showPermissionScreen() }
+        setContentView(root)
+        updateHomeStatus()
+    }
+
+    private fun showPermissionScreen() {
+        showingPermissionScreen = true
+        root = createRoot()
+        addText(root, "Controllo permessi", 24f)
+        addText(root, "Qui puoi verificare le autorizzazioni di Android e concederle quando servono. DeviceLink non chiede accessi non ancora necessari.")
+        addPermissionRow(
+            "Notifiche",
+            Manifest.permission.POST_NOTIFICATIONS,
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+            "Serve per mostrare lo stato del servizio in primo piano."
+        )
+        addPermissionRow(
+            "Rete locale",
+            "android.permission.ACCESS_LOCAL_NETWORK",
+            Build.VERSION.SDK_INT >= 37,
+            "Servirà per trovare e collegare gli altri dispositivi nella rete Wi-Fi o hotspot."
+        )
+        addText(root, "Le autorizzazioni possono essere revocate in qualsiasi momento dalle impostazioni Android.")
+        addButton(root, "Impostazioni app") { openAppSettings() }
+        addButton(root, "Torna alla schermata principale") { showHome() }
+        setContentView(root)
+    }
+
+    private fun addPermissionRow(
+        title: String,
+        permission: String,
+        supported: Boolean,
+        explanation: String
+    ) {
+        addText(root, title, 19f)
+        addText(root, explanation, 14f)
+        if (!supported) {
+            addText(root, "Non richiesta da questa versione di Android.", 14f)
+            return
+        }
+
+        val granted = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        addText(root, if (granted) "Stato: consentito" else "Stato: non consentito", 14f)
+        if (!granted) {
+            addButton(root, "Concedi: $title") {
+                requestPermissions(arrayOf(permission), REQUEST_DASHBOARD_PERMISSION)
+            }
+        }
+    }
+
+    private fun requestFirstLaunchNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (preferences.getBoolean(KEY_FIRST_PERMISSION_CHECK, false)) return
+
+        // Mark before showing the system dialog so a denial does not trigger a prompt on every launch.
+        preferences.edit().putBoolean(KEY_FIRST_PERMISSION_CHECK, true).apply()
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_FIRST_LAUNCH_PERMISSION
+            )
+        }
     }
 
     private fun requestNotificationPermissionAndStart() {
@@ -81,10 +147,7 @@ class MainActivity : Activity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             startAfterPermissionGrant = true
-            requestPermissions(
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                REQUEST_NOTIFICATIONS
-            )
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_START_PERMISSION)
             return
         }
         startServiceIfNotificationsEnabled()
@@ -93,12 +156,11 @@ class MainActivity : Activity() {
     private fun startServiceIfNotificationsEnabled() {
         val manager = getSystemService(NotificationManager::class.java)
         if (!manager.areNotificationsEnabled()) {
-            status.text = "Le notifiche di DeviceLink sono disattivate. Abilita nelle impostazioni e riprova."
+            status.text = "Le notifiche di DeviceLink sono disattivate. Puoi riattivarle nelle impostazioni dell'app."
             openNotificationSettings()
             return
         }
-        val intent = Intent(this, PeerService::class.java)
-            .setAction(PeerService.ACTION_START)
+        val intent = Intent(this, PeerService::class.java).setAction(PeerService.ACTION_START)
         startForegroundService(intent)
         status.text = "Servizio avviato. La notifica DeviceLink dovrebbe essere visibile."
     }
@@ -109,42 +171,56 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_NOTIFICATIONS) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
 
-        val shouldStart = startAfterPermissionGrant
-        startAfterPermissionGrant = false
-        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            status.text = "Permesso notifiche concesso."
-            if (shouldStart) startServiceIfNotificationsEnabled()
-        } else {
-            status.text = "Permesso notifiche negato. DeviceLink non può mostrare la notifica nel pannello."
+        when (requestCode) {
+            REQUEST_START_PERMISSION -> {
+                val shouldStart = startAfterPermissionGrant
+                startAfterPermissionGrant = false
+                if (granted && shouldStart) startServiceIfNotificationsEnabled()
+                else if (!granted) status.text = "Permesso notifiche negato. Puoi modificarlo da Controllo permessi."
+            }
+            REQUEST_FIRST_LAUNCH_PERMISSION -> {
+                if (::status.isInitialized) {
+                    status.text = if (granted) "Permesso notifiche concesso." else
+                        "Permesso notifiche non concesso. Puoi modificarlo da Controllo permessi."
+                }
+            }
+            REQUEST_DASHBOARD_PERMISSION -> showPermissionScreen()
         }
     }
 
-    private fun updateNotificationStatus() {
-        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        val notificationsEnabled = getSystemService(NotificationManager::class.java)
-            .areNotificationsEnabled()
+    private fun updateHomeStatus() {
+        if (!::status.isInitialized) return
+        val notificationPermissionGranted =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val notificationsEnabled = getSystemService(NotificationManager::class.java).areNotificationsEnabled()
         status.text = when {
-            !permissionGranted -> "Notifiche non autorizzate: premi «Avvia servizio» per concedere il permesso."
-            !notificationsEnabled -> "Notifiche disattivate nelle impostazioni di Android."
-            else -> "Permesso notifiche attivo."
+            !notificationPermissionGranted -> "Notifiche: autorizzazione non concessa."
+            !notificationsEnabled -> "Notifiche: disattivate nelle impostazioni Android."
+            else -> "Notifiche: autorizzate."
         }
     }
 
     private fun openNotificationSettings() {
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startActivity(
             Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-        } else {
+        )
+    }
+
+    private fun openAppSettings() {
+        startActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 .setData(Uri.parse("package:$packageName"))
-        }
-        startActivity(intent)
+        )
     }
 
     companion object {
-        private const val REQUEST_NOTIFICATIONS = 4101
+        private const val KEY_FIRST_PERMISSION_CHECK = "first_permission_check_done"
+        private const val REQUEST_FIRST_LAUNCH_PERMISSION = 4101
+        private const val REQUEST_START_PERMISSION = 4102
+        private const val REQUEST_DASHBOARD_PERMISSION = 4103
     }
 }
