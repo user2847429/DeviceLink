@@ -1,65 +1,72 @@
-# Architecture overview
+# Capability architecture
 
-**Status: design draft, not an implementation specification.**
+**Status: foundational design and metadata scaffold. Not a remote execution API.**
 
-## Model
+DeviceLink uses a small, composable capability model inspired by the Unix
+preference for focused tools. The analogy is about modularity, not about
+exposing a shell: a capability offers a small set of named operations with
+validated inputs and explicit authorization requirements.
 
-DeviceLink is a network of symmetric peers. Any peer may offer and consume
-capabilities. The design must support more than two peers without assuming a
-permanent controller or host.
+## Core boundaries
 
-## Layers
+- **Core:** identity, pairing/trust, authenticated sessions, protocol
+  negotiation, authorization, event delivery, and transfer coordination.
+- **Capability modules:** focused features such as `device.apps`,
+  `device.files`, `device.media`, `device.notifications`,
+  `device.clipboard`, `device.input`, `device.display`, and
+  `device.network`.
+- **Android adapters:** Android framework APIs, permissions, intents,
+  MediaSession, document providers, and optional Shizuku integration.
+- **Privilege broker:** narrowly named and validated privileged operations.
+  No capability receives a general shell or unrestricted system access.
 
-1. **Identity and trust** — stable per-installation device identity, key storage,
-   explicit pairing, peer revocation, and trust state.
-2. **Discovery** — mDNS on supported local networks; manual address and QR
-   fallback; gateway probing for hotspot topologies; optional BLE wake-up.
-3. **Session/control plane** — persistent authenticated channel for hello,
-   version negotiation, capability advertisements, commands, events, and
-   acknowledgements.
-4. **Data plane** — separately negotiated transfers for files and other bulk
-   payloads. Use transfer IDs, bounded chunks, resumability, one-time tokens,
-   and end-to-end integrity checks.
-5. **Capability modules** — files, media, notifications, clipboard, apps, network,
-   screen, camera, and input. A capability declares what it provides and what it
-   requires; authorization is per peer and capability.
-6. **Privilege broker** — Android-only adapter for Shizuku/root-backed operations.
-   Modules request named, validated operations; they never receive a general
-   arbitrary-shell interface.
+A capability descriptor has a stable namespaced ID, its own version, a list of
+operation IDs, and the grants it requires. Individual sensitive operations can
+require explicit user approval. Availability is negotiated per peer and may
+differ by OS version, ROM, permissions, or installed adapters.
 
-## Initial technology choices
+## Composition
 
-- Android application: Kotlin.
-- Linux peer daemon: Rust, running as a user service; D-Bus integration via zbus
-  can expose desktop facilities such as MPRIS and notifications.
-- Protocol: language-neutral schema and normative documentation, with shared
-  fixtures. Protobuf is the current candidate; final encoding is not frozen.
-- Transport: TLS 1.3 with mutual peer authentication is the initial direction.
-  Certificate/key pinning and QR/PIN pairing require a detailed threat model.
-- TCP first; QUIC is deferred. gRPC is not required.
-- Bluetooth is for discovery/wake-up and small control hints, not bulk transfer.
+Capabilities should call shared core services through narrow interfaces rather
+than opening their own sockets or implementing their own security. The core
+routes authorized requests to the local module and returns structured results.
+Bulk data uses the separate transfer plane, not large control messages.
 
-## Reliability and loop prevention
+Modules must be independently testable. Missing or unavailable modules must
+not prevent peers from connecting. Events need IDs and idempotent handling to
+avoid duplicate actions and relay loops.
 
-Important events need stable IDs, sequence numbers, acknowledgements, and
-idempotent handling. Relayed events carry origin metadata to prevent notification
-and clipboard echo loops. Reconnection must reconcile state rather than assume
-that timestamps alone establish ordering.
+## Platform strategy
 
-## Platform constraints
+Android is the only active application target. Keep capability IDs, operation
+IDs, versioning, and protocol semantics platform-neutral so future independent
+implementations can interoperate. Android-specific implementation remains
+behind adapters. Do not build Linux, Windows, or macOS applications as part of
+the current phase.
 
-Android API 35 is the minimum; target API 37. Capabilities must be negotiated
-at runtime because APIs, permissions, ROM behavior, and foreground-service
-restrictions vary by Android version. A missing capability must degrade cleanly,
-not break the peer connection.
+## Current code scaffold
 
-Linux is a first-class platform from the beginning. Windows is out of scope.
+The Android project contains `CapabilityDescriptor` and
+`CapabilityRegistry`. They validate and catalogue local capability metadata.
+They do not execute operations, advertise capabilities over the network, or
+grant permissions. Those steps must wait for authenticated sessions,
+authorization policy, and a frozen wire representation.
 
-## Security invariants
+## Planned initial modules
 
-- No data channel before successful pairing and peer authentication.
-- No implicit trust based only on being on the same Wi-Fi network.
-- No cloud, account, Firebase, or Google Play Services dependency.
-- Explicit user approval for each sensitive capability.
-- Least privilege; Shizuku operations are narrow and auditable.
-- File transfer verifies integrity and never silently overwrites by default.
+| Module | Example operations |
+|---|---|
+| `device.peers` | discover, list, forget |
+| `device.apps` | list, launch, inspect |
+| `device.files` | browse, offer, receive, resume |
+| `device.media` | get-state, play, pause, seek, set-volume |
+| `device.notifications` | list-supported, dismiss, relay |
+| `device.clipboard` | read-with-consent, write, subscribe |
+| `device.input` | key, pointer, touch — only where Android permits |
+| `device.display` | get-info, request-capture — with explicit consent |
+| `device.network` | get-status, hotspot operations where permitted |
+| `device.system` | get-limited-info, request-approved-action |
+
+These names are planning examples, not promises that every operation is
+available on every Android device. Each module will document platform limits,
+required grants, and whether the operation is read-only or changes device state.
