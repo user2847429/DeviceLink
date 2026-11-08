@@ -4,6 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -28,6 +31,32 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private var startAfterPermissionGrant = false
     private var showingPermissionScreen = false
+    private var peerReceiverRegistered = false
+    private val discoveredPeers = linkedMapOf<String, String>()
+    private var devicesList: LinearLayout? = null
+    private var devicesStatus: TextView? = null
+
+    private val peerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                PeerService.ACTION_PEER_FOUND -> {
+                    val name = intent.getStringExtra(PeerService.EXTRA_SERVICE_NAME) ?: return
+                    val host = intent.getStringExtra(PeerService.EXTRA_HOST).orEmpty()
+                    val port = intent.getIntExtra(PeerService.EXTRA_PORT, 0)
+                    discoveredPeers[name] = name + "\\n" + host + ":" + port
+                    renderDiscoveredPeers()
+                }
+                PeerService.ACTION_PEER_LOST -> {
+                    intent.getStringExtra(PeerService.EXTRA_SERVICE_NAME)?.let(discoveredPeers::remove)
+                    renderDiscoveredPeers()
+                }
+                PeerService.ACTION_DISCOVERY_ERROR -> {
+                    devicesStatus?.text = intent.getStringExtra(PeerService.EXTRA_MESSAGE)
+                        ?: "Errore durante la ricerca."
+                }
+            }
+        }
+    }
 
     private val preferences by lazy {
         getSharedPreferences("devicelink_setup", MODE_PRIVATE)
@@ -68,6 +97,7 @@ class MainActivity : Activity() {
     }
 
     private fun showHome() {
+        unregisterPeerReceiver()
         showingPermissionScreen = false
         root = createRoot()
         addText(root, "DeviceLink", 26f)
@@ -77,6 +107,7 @@ class MainActivity : Activity() {
         )
         status = addText(root, "")
         addButton(root, "Avvia servizio") { requestNotificationPermissionAndStart() }
+        addButton(root, "Trova dispositivi") { requestLocalNetworkPermissionAndDiscover() }
         addButton(root, "Arresta servizio") {
             val intent = Intent(this, PeerService::class.java).setAction(PeerService.ACTION_STOP)
             startService(intent)
@@ -88,11 +119,13 @@ class MainActivity : Activity() {
     }
 
     private fun showSettings() {
+        unregisterPeerReceiver()
         showingPermissionScreen = false
         root = createRoot()
         addText(root, "Impostazioni", 24f)
         addText(root, "Gestisci le autorizzazioni e le funzioni locali di DeviceLink.")
         addButton(root, "Controllo permessi") { showPermissionScreen() }
+        addButton(root, "Dispositivi") { requestLocalNetworkPermissionAndDiscover() }
         addButton(root, "App installate") { showInstalledApps() }
         addButton(root, "Impostazioni Android") { openAppSettings() }
         addButton(root, "Torna alla schermata principale") { showHome() }
@@ -100,6 +133,7 @@ class MainActivity : Activity() {
     }
 
     private fun showInstalledApps() {
+        unregisterPeerReceiver()
         showingPermissionScreen = false
         root = createRoot()
         addText(root, "App installate", 24f)
@@ -181,6 +215,7 @@ class MainActivity : Activity() {
     }
 
     private fun showPermissionScreen() {
+        unregisterPeerReceiver()
         showingPermissionScreen = true
         root = createRoot()
         addText(root, "Controllo permessi", 24f)
@@ -201,6 +236,78 @@ class MainActivity : Activity() {
         addButton(root, "Impostazioni Android") { openAppSettings() }
         addButton(root, "Indietro") { showSettings() }
         setContentView(root)
+    }
+
+
+    private fun requestLocalNetworkPermissionAndDiscover() {
+        if (Build.VERSION.SDK_INT >= 37 &&
+            checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf("android.permission.ACCESS_LOCAL_NETWORK"),
+                REQUEST_LOCAL_NETWORK_PERMISSION
+            )
+            return
+        }
+        showDevicesScreen()
+    }
+
+    private fun showDevicesScreen() {
+        showingPermissionScreen = false
+        discoveredPeers.clear()
+        root = createRoot()
+        addText(root, "Dispositivi", 24f)
+        addText(root, "Ricerca nella rete Wi-Fi o nell'hotspot. I dispositivi trovati non sono ancora collegati: pairing e cifratura saranno aggiunti dopo.")
+        devicesStatus = addText(root, "Ricerca dei dispositivi in corso…")
+        val scrollView = ScrollView(this)
+        devicesList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scrollView.addView(devicesList)
+        root.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        addButton(root, "Aggiorna ricerca") {
+            startService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER))
+            devicesStatus?.text = "Ricerca aggiornata."
+        }
+        addButton(root, "Indietro") { showHome() }
+        setContentView(root)
+        registerPeerReceiver()
+        startService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER))
+    }
+
+    private fun registerPeerReceiver() {
+        if (peerReceiverRegistered) return
+        val filter = IntentFilter().apply {
+            addAction(PeerService.ACTION_PEER_FOUND)
+            addAction(PeerService.ACTION_PEER_LOST)
+            addAction(PeerService.ACTION_DISCOVERY_ERROR)
+        }
+        registerReceiver(peerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        peerReceiverRegistered = true
+    }
+
+    private fun unregisterPeerReceiver() {
+        if (!peerReceiverRegistered) return
+        unregisterReceiver(peerReceiver)
+        peerReceiverRegistered = false
+        devicesList = null
+        devicesStatus = null
+    }
+
+    private fun renderDiscoveredPeers() {
+        val list = devicesList ?: return
+        list.removeAllViews()
+        if (discoveredPeers.isEmpty()) {
+            devicesStatus?.text = "Nessun dispositivo trovato per ora."
+            return
+        }
+        devicesStatus?.text = "Trovati " + discoveredPeers.size + " dispositivi."
+        discoveredPeers.values.forEach { details -> addText(list, details) }
+    }
+
+    override fun onDestroy() {
+        unregisterPeerReceiver()
+        super.onDestroy()
     }
 
     private fun addPermissionRow(
@@ -284,6 +391,9 @@ class MainActivity : Activity() {
                 }
             }
             REQUEST_DASHBOARD_PERMISSION -> showPermissionScreen()
+            REQUEST_LOCAL_NETWORK_PERMISSION -> {
+                if (granted) showDevicesScreen() else showPermissionScreen()
+            }
         }
     }
 
@@ -319,5 +429,6 @@ class MainActivity : Activity() {
         private const val REQUEST_FIRST_LAUNCH_PERMISSION = 4101
         private const val REQUEST_START_PERMISSION = 4102
         private const val REQUEST_DASHBOARD_PERMISSION = 4103
+        private const val REQUEST_LOCAL_NETWORK_PERMISSION = 4104
     }
 }
