@@ -189,7 +189,7 @@ class NsdPeerDiscovery(
         val interfaces = NetworkInterface.getNetworkInterfaces()
         while (interfaces.hasMoreElements()) {
             val networkInterface = interfaces.nextElement()
-            if (!networkInterface.isUp || !networkInterface.supportsMulticast()) continue
+            if (!networkInterface.isUp) continue
             for (entry in networkInterface.interfaceAddresses) {
                 val local = entry.address
                 val broadcast = entry.broadcast
