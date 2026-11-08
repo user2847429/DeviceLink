@@ -36,6 +36,6 @@ data class CapabilityOperation(
     }
 
     companion object {
-        private val OPERATION_PATTERN = Regex("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*")
+        private val OPERATION_PATTERN = Regex("[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*")
     }
 }
