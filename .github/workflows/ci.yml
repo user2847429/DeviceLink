@@ -69,6 +69,15 @@ jobs:
           done
           exit 1
 
+      - name: Run Android instrumentation tests (API 35 emulator)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: cd android && gradle --no-daemon :app:connectedDebugAndroidTest
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
