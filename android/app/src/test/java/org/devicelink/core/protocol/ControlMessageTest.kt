@@ -43,6 +43,15 @@ class ControlMessageTest {
     }
 
     @Test
+    fun measuresPeerIdentifierLimitsInUtf8Bytes() {
+        val accepted = "界".repeat(ControlMessage.MAX_PEER_ID_BYTES / 3)
+        val rejected = "界".repeat((ControlMessage.MAX_PEER_ID_BYTES / 3) + 1)
+
+        assertEquals(ValidationResult.Valid, message(senderPeerId = accepted).validate())
+        assertEquals(ValidationResult.PeerIdTooLong, message(senderPeerId = rejected).validate())
+    }
+
+    @Test
     fun acceptsPayloadAtLimitAndRejectsPayloadAboveLimit() {
         val limit = ControlMessage.MAX_CONTROL_PAYLOAD_BYTES
         assertEquals(ValidationResult.Valid, message(payload = ByteArray(limit)).validate())
