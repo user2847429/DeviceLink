@@ -103,7 +103,7 @@ class MainActivity : Activity() {
         addText(root, "DeviceLink", 26f)
         addText(
             root,
-            "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
+            "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. Puoi cercare altri dispositivi DeviceLink sulla rete locale; il collegamento sicuro arriverà in una fase successiva."
         )
         status = addText(root, "")
         addButton(root, "Avvia servizio") { requestNotificationPermissionAndStart() }
