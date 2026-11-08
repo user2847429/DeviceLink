@@ -23,7 +23,7 @@ import android.widget.TextView
 import org.devicelink.core.peer.PeerService
 
 /**
- * Initial DeviceLink controls. Peer discovery and device connections are not implemented yet.
+ * Initial DeviceLink controls and mDNS peer discovery UI. Peer connections are not implemented yet.
  */
 class MainActivity : Activity() {
 
