@@ -1,6 +1,6 @@
 # Device identity and pairing
 
-**Status:** implementation in progress. Local Android identity storage, pairing-offer validation, confirmation-code derivation primitives, two-sided confirmation, and a trusted-peer registry policy exist. Encrypted persistence, QR UI, authenticated transport, and end-to-end pairing are not implemented. This is not a security audit.
+**Status:** implementation in progress. Local Android identity storage, pairing-offer validation, confirmation-code derivation primitives, two-sided confirmation, and a trusted-peer registry policy exist. An Android encrypted trusted-peer repository now exists, but it is not yet wired into the app's pairing flow. QR UI, authenticated transport, and end-to-end pairing are not implemented. This is not a security audit.
 
 ## Goals
 
@@ -67,4 +67,4 @@ The intended transport is TLS 1.3 with strict peer authentication bound to the p
 - Add shared interoperability fixtures and replay, expiry, key-change, and interrupted-pairing tests.
 - Review backup, reinstall, reset, and key-loss behavior.
 
-The platform-neutral TrustedPeerRegistry permits a trust record only after both confirmations, before expiry, and only when the peer ID matches the supplied public key. It rejects identity substitution and makes revocation explicit. The repository is an interface only: no production persistence backend is wired yet. A production Android repository must encrypt records at rest, make writes atomic, and terminate active sessions on revocation. These primitives are not a complete pairing feature and must not be used to trust a remote peer over the network yet.
+The platform-neutral TrustedPeerRegistry permits a trust record only after both confirmations, before expiry, and only when the peer ID matches the supplied public key. It rejects identity substitution and makes revocation explicit. The Android repository stores a bounded, versioned binary record set in app-private storage. It encrypts the complete payload with AES-256-GCM using a non-exportable Android Keystore key, authenticates the envelope header as AAD, and uses Android AtomicFile so interrupted writes can recover without a plaintext temporary file. It validates record bounds and peer-ID/public-key consistency on read and write. A missing Keystore key with an existing database fails closed rather than silently discarding trust data. The repository is not yet wired into the pairing flow; callers must also terminate active sessions on revocation. This is not a complete pairing feature and must not be used to trust a remote peer over the network yet.
