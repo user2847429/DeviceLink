@@ -19,12 +19,12 @@ import java.security.spec.X509EncodedKeySpec
  * a network session; it only provides a stable public identity and signatures.
  */
 class DeviceIdentityStore(
-    private val alias: String = DEFAULT_KEY_ALIAS
+    internal val keyAlias: String = DEFAULT_KEY_ALIAS
 ) {
     @Synchronized
     fun getOrCreateIdentity(): DeviceIdentity {
         val keyStore = loadKeyStore()
-        val existing = keyStore.getEntry(alias, null) as? KeyStore.PrivateKeyEntry
+        val existing = keyStore.getEntry(keyAlias, null) as? KeyStore.PrivateKeyEntry
         val entry = existing ?: createKeyEntry(keyStore)
         val publicKey = entry.certificate.publicKey
         return DeviceIdentity(
@@ -65,7 +65,7 @@ class DeviceIdentityStore(
         val generator = KeyPairGenerator.getInstance(KEY_ALGORITHM, ANDROID_KEYSTORE)
         generator.initialize(
             KeyGenParameterSpec.Builder(
-                alias,
+                keyAlias,
                 KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
             )
                 .setAlgorithmParameterSpec(ECGenParameterSpec(EC_CURVE))

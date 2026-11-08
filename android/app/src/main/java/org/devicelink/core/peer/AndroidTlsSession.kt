@@ -37,9 +37,10 @@ class AndroidTlsSession private constructor(
             host: String,
             port: Int,
             handshakeTimeoutMillis: Int = DEFAULT_HANDSHAKE_TIMEOUT_MILLIS,
+            connectTimeoutMillis: Int = DEFAULT_HANDSHAKE_TIMEOUT_MILLIS,
         ): AndroidTlsSession {
-            require(handshakeTimeoutMillis > 0)
-            val socket = tlsFactory.createClientSocket(host, port)
+            require(handshakeTimeoutMillis > 0 && connectTimeoutMillis > 0)
+            val socket = tlsFactory.createClientSocket(host, port, connectTimeoutMillis)
             return completeHandshake(
                 socket, tlsFactory, expectedPeerId, expectedPeerPublicKey,
                 handshakeTimeoutMillis
@@ -92,6 +93,7 @@ class AndroidTlsSession private constructor(
                 check(MessageDigest.isEqual(expectedPeerPublicKey, actualKey)) {
                     "Peer certificate public key does not match the expected pinned key."
                 }
+                socket.soTimeout = 0
                 return AndroidTlsSession(socket, expectedPeerId, tlsFactory)
             } catch (error: Exception) {
                 try {

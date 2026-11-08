@@ -2,6 +2,7 @@ package org.devicelink.core.peer
 
 import android.net.ssl.SSLSockets
 import java.net.Socket
+import java.net.InetSocketAddress
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.net.ssl.KeyManagerFactory
@@ -22,7 +23,6 @@ class AndroidTlsSocketFactory(
     private val expectedPeerId: String,
     expectedPeerPublicKeyEncoded: ByteArray,
     private val identityStore: DeviceIdentityStore = DeviceIdentityStore(),
-    private val keyStoreAlias: String = DEFAULT_IDENTITY_ALIAS,
 ) {
     private val expectedPublicKey = expectedPeerPublicKeyEncoded.clone()
 
@@ -37,13 +37,20 @@ class AndroidTlsSocketFactory(
     }
 
     /** Creates a client-mode socket. The caller must invoke startHandshake(). */
-    fun createClientSocket(host: String, port: Int): SSLSocket {
+    fun createClientSocket(host: String, port: Int, connectTimeoutMillis: Int = DEFAULT_CONNECT_TIMEOUT_MILLIS): SSLSocket {
         require(host.isNotBlank())
         require(port in 1..65535)
+        require(connectTimeoutMillis > 0)
         val context = createPinnedContext()
-        return (context.socketFactory.createSocket(host, port) as SSLSocket).apply {
-            enabledProtocols = arrayOf(TLS_1_3)
-            useClientMode = true
+        val socket = context.socketFactory.createSocket() as SSLSocket
+        try {
+            socket.connect(InetSocketAddress(host, port), connectTimeoutMillis)
+            socket.enabledProtocols = arrayOf(TLS_1_3)
+            socket.useClientMode = true
+            return socket
+        } catch (error: Exception) {
+            try { socket.close() } catch (_: Exception) { }
+            throw error
         }
     }
 
@@ -91,7 +98,7 @@ class AndroidTlsSocketFactory(
         // Ensure the installation identity exists before loading AndroidKeyStore.
         val identity = identityStore.getOrCreateIdentity()
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        val localCertificate = keyStore.getCertificate(keyStoreAlias)
+        val localCertificate = keyStore.getCertificate(identityStore.keyAlias)
             ?: throw SSLException("DeviceLink identity certificate is missing from Android Keystore.")
         if (!MessageDigest.isEqual(identity.publicKeyEncoded, localCertificate.publicKey.encoded)) {
             throw SSLException("Android Keystore identity certificate does not match the DeviceLink peer ID.")
@@ -138,7 +145,7 @@ class AndroidTlsSocketFactory(
     }
 
     companion object {
-        private const val DEFAULT_IDENTITY_ALIAS = "devicelink.installation.identity.v1"
+        private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val TLS_1_3 = "TLSv1.3"
         private const val EXPORTER_LABEL = "EXPORTER-DeviceLink-Pairing-v1"
