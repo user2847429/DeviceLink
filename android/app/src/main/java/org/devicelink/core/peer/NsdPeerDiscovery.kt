@@ -58,7 +58,7 @@ class NsdPeerDiscovery(
                 serviceName = "DeviceLink-${UUID.randomUUID().toString().take(8)}"
                 serviceType = SERVICE_TYPE
                 port = listener.localPort
-                setAttribute("protocol", PROTOCOL_VERSION)
+                setAttribute("protocol", PROTOCOL_VERSION.toByteArray(Charsets.UTF_8))
             }
 
             val registration = object : NsdManager.RegistrationListener {
