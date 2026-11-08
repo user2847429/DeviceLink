@@ -87,11 +87,10 @@ jobs:
           disable-animations: true
           script: |
             set +e
-            cd android
             gradle --no-daemon :app:connectedDebugAndroidTest
             test_status=$?
             echo "===== ANDROID TEST XML RESULTS ====="
-            find app/build/outputs/androidTest-results app/build/reports/androidTests -type f \\( -name '*.xml' -o -name '*.txt' \\) -print -exec cat {} \\; 2>/dev/null || true
+            find android/app/build/outputs/androidTest-results android/app/build/reports/androidTests -type f \\( -name '*.xml' -o -name '*.txt' \\) -print -exec cat {} \\; 2>/dev/null || true
             echo "===== RECENT DEVICE LOGS ====="
             adb logcat -d -t 1500 2>/dev/null | grep -E -i 'AndroidJUnitRunner|Instrumentation|FATAL EXCEPTION|SSL|KeyStore|DeviceIdentity|AndroidTls' | tail -n 250 || true
             exit "$test_status"
