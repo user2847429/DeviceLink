@@ -1,0 +1,8 @@
+[package]
+name = "devicelink-daemon"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "DeviceLink local peer daemon for Linux"
+
+[dependencies]
