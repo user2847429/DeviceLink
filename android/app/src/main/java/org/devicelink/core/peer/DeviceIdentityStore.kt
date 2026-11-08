@@ -74,7 +74,7 @@ class DeviceIdentityStore(
                 .build()
         )
         generator.generateKeyPair()
-        return keyStore.getEntry(alias, null) as? KeyStore.PrivateKeyEntry
+        return keyStore.getEntry(keyAlias, null) as? KeyStore.PrivateKeyEntry
             ?: error("Android Keystore did not return the generated identity key.")
     }
 
