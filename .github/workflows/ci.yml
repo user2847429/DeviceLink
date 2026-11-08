@@ -87,7 +87,7 @@ jobs:
           disable-animations: true
           script: |
             set +e
-            gradle --no-daemon :app:connectedDebugAndroidTest
+            gradle --no-daemon -p android :app:connectedDebugAndroidTest
             test_status=$?
             echo "===== ANDROID TEST XML RESULTS ====="
             find android/app/build/outputs/androidTest-results android/app/build/reports/androidTests -type f \\( -name '*.xml' -o -name '*.txt' \\) -print -exec cat {} \\; 2>/dev/null || true
