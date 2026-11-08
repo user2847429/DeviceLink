@@ -46,7 +46,7 @@ These are roadmap items, **not implemented features**. Some depend on Android ve
 The initial CI builds the Android debug APK and checks/tests the Linux Rust workspace. Local prerequisites:
 
 - JDK 17
-- Android SDK Platform 37 and Build Tools 36.0.0
+- Android SDK Platform 37.0 and Build Tools 37.0.0
 - Gradle 9.8.2 (or the Gradle version supplied by your distribution)
 - Rust stable toolchain
 
