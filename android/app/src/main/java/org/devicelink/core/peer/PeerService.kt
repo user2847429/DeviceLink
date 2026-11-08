@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import java.net.InetSocketAddress
+import java.net.Socket
 
 /**
  * Owns the foreground peer component and its explicitly requested LAN discovery.
@@ -33,6 +35,11 @@ class PeerService : Service() {
                 }
                 startDiscovery()
             }
+            ACTION_TCP_PROBE -> probeTcp(
+                intent.getStringExtra(EXTRA_HOST).orEmpty(),
+                intent.getIntExtra(EXTRA_PORT, 0),
+                intent.getStringExtra(EXTRA_SERVICE_NAME).orEmpty()
+            )
             ACTION_STOP -> {
                 discovery?.stop()
                 discovery = null
@@ -42,6 +49,27 @@ class PeerService : Service() {
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY
+    }
+
+    private fun probeTcp(host: String, port: Int, peerName: String) {
+        if (host.isBlank() || port !in 1..65535 || peerName.isBlank()) return
+        Thread({
+            val result = try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, port), TCP_PROBE_TIMEOUT_MS)
+                }
+                "TCP raggiungibile con $peerName ($host:$port). Nessun dato applicativo inviato; sessione NON autenticata."
+            } catch (e: Exception) {
+                "Connessione TCP a $peerName non riuscita: ${e.message ?: e.javaClass.simpleName}."
+            }
+            sendPeerEvent(ACTION_TCP_PROBE_RESULT) {
+                putExtra(EXTRA_SERVICE_NAME, peerName)
+                putExtra(EXTRA_MESSAGE, result)
+            }
+        }, "DeviceLink-tcp-probe").apply {
+            isDaemon = true
+            start()
+        }
     }
 
     private fun startForegroundServiceNotification() {
@@ -122,6 +150,8 @@ class PeerService : Service() {
         const val ACTION_START = "org.devicelink.action.START_PEER_SERVICE"
         const val ACTION_DISCOVER = "org.devicelink.action.DISCOVER_PEERS"
         const val ACTION_STOP = "org.devicelink.action.STOP_PEER_SERVICE"
+        const val ACTION_TCP_PROBE = "org.devicelink.action.TCP_PROBE"
+        const val ACTION_TCP_PROBE_RESULT = "org.devicelink.action.TCP_PROBE_RESULT"
 
         const val ACTION_PEER_FOUND = "org.devicelink.action.PEER_FOUND"
         const val ACTION_PEER_LOST = "org.devicelink.action.PEER_LOST"
@@ -134,5 +164,6 @@ class PeerService : Service() {
 
         private const val CHANNEL_ID = "devicelink_peer"
         private const val NOTIFICATION_ID = 1001
+        private const val TCP_PROBE_TIMEOUT_MS = 4000
     }
 }
