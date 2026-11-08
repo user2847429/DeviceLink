@@ -65,6 +65,7 @@ jobs:
         with:
           workspaces: linux
 
+      # Cargo.lock is committed so --locked keeps CI reproducible.
       - name: Check
         working-directory: linux
         run: cargo check --locked
