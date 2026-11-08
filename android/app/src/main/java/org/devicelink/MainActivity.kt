@@ -54,6 +54,12 @@ class MainActivity : Activity() {
                     devicesStatus?.text = intent.getStringExtra(PeerService.EXTRA_MESSAGE)
                         ?: "Errore durante la ricerca."
                 }
+                PeerService.ACTION_DISCOVERY_STATUS -> {
+                    if (discoveredPeers.isEmpty()) {
+                        devicesStatus?.text = intent.getStringExtra(PeerService.EXTRA_MESSAGE)
+                            ?: "Ricerca in corso…"
+                    }
+                }
             }
         }
     }
@@ -258,7 +264,7 @@ class MainActivity : Activity() {
         root = createRoot()
         addText(root, "Dispositivi", 24f)
         addText(root, "Ricerca nella rete Wi-Fi o nell'hotspot. I dispositivi trovati non sono ancora collegati: pairing e cifratura saranno aggiunti dopo.")
-        devicesStatus = addText(root, "Ricerca dei dispositivi in corso…")
+        devicesStatus = addText(root, "Avvio del servizio di ricerca…")
         val scrollView = ScrollView(this)
         devicesList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView.addView(devicesList)
@@ -269,7 +275,7 @@ class MainActivity : Activity() {
             startForegroundService(
                 Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER)
             )
-            devicesStatus?.text = "Ricerca aggiornata."
+            devicesStatus?.text = "Riavvio della ricerca in corso…"
         }
         addButton(root, "Indietro") { showHome() }
         setContentView(root)
@@ -283,6 +289,7 @@ class MainActivity : Activity() {
             addAction(PeerService.ACTION_PEER_FOUND)
             addAction(PeerService.ACTION_PEER_LOST)
             addAction(PeerService.ACTION_DISCOVERY_ERROR)
+            addAction(PeerService.ACTION_DISCOVERY_STATUS)
         }
         registerReceiver(peerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         peerReceiverRegistered = true
@@ -300,7 +307,7 @@ class MainActivity : Activity() {
         val list = devicesList ?: return
         list.removeAllViews()
         if (discoveredPeers.isEmpty()) {
-            devicesStatus?.text = "Nessun dispositivo trovato per ora."
+            // Keep the latest diagnostic status while discovery is still running.
             return
         }
         devicesStatus?.text = "Trovati " + discoveredPeers.size + " dispositivi."
