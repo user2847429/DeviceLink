@@ -12,7 +12,12 @@ class CapabilityRegistry {
         require(!entries.containsKey(descriptor.id)) {
             "Capability already registered: ${descriptor.id}"
         }
-        entries[descriptor.id] = descriptor
+        // Keep a defensive snapshot so later caller-side collection changes
+        // cannot silently alter the registered capability contract.
+        entries[descriptor.id] = descriptor.copy(
+            operations = descriptor.operations.toList(),
+            requiredGrants = descriptor.requiredGrants.toSet()
+        )
     }
 
     @Synchronized
@@ -23,4 +28,9 @@ class CapabilityRegistry {
 
     @Synchronized
     fun contains(id: String): Boolean = entries.containsKey(id)
+
+    /** True only for an operation explicitly declared by this local capability. */
+    @Synchronized
+    fun supports(capabilityId: String, operationId: String): Boolean =
+        entries[capabilityId]?.operations?.any { it.id == operationId } == true
 }
