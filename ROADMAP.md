@@ -24,6 +24,7 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 
 - [x] Pure Kotlin peer lifecycle state model and transition tests (state logic only; no Android service or networking yet).
 - [x] Initial Android foreground peer service with explicit start/stop controls and persistent status notification (lifecycle only; no discovery or peer connection yet).
+- [x] First-launch notification permission prompt and in-app permission status screen (notification and Android 17 local-network permission; local-network access is requested only when the user chooses it).
 - [ ] Android-to-Android discovery over mDNS plus manual address/QR fallback.
 - [ ] Authenticated encrypted session between two Android devices.
 - [ ] Reconnection and peer lifecycle tests.
