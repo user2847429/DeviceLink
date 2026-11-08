@@ -8,11 +8,11 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 - [x] Architecture and protocol design notes.
 - [x] Android and Linux build skeletons.
 - [x] GitHub Actions build workflow.
-- [ ] Confirm CI passes on the default branch.
+- [x] Confirm CI passes on the default branch (Android debug APK and Linux checks).
 
 ## Phase 1 — protocol and threat model
 
-- [ ] Threat model and trust boundaries.
+- [x] Initial threat model and trust boundaries (draft; requires review as implementation evolves).
 - [ ] Device identity and key lifecycle.
 - [ ] Pairing flow (QR and short authentication code).
 - [ ] Versioned control messages and capability negotiation.
