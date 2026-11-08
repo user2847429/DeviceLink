@@ -85,7 +85,16 @@ jobs:
           emulator-boot-timeout: 300
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: cd android && gradle --no-daemon :app:connectedDebugAndroidTest
+          script: |
+            set +e
+            cd android
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            test_status=$?
+            echo "===== ANDROID TEST XML RESULTS ====="
+            find app/build/outputs/androidTest-results app/build/reports/androidTests -type f \\( -name '*.xml' -o -name '*.txt' \\) -print -exec cat {} \\; 2>/dev/null || true
+            echo "===== RECENT DEVICE LOGS ====="
+            adb logcat -d -t 1500 2>/dev/null | grep -E -i 'AndroidJUnitRunner|Instrumentation|FATAL EXCEPTION|SSL|KeyStore|DeviceIdentity|AndroidTls' | tail -n 250 || true
+            exit "$test_status"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
