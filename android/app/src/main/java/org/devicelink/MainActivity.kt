@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
+import android.widget.EditText
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -70,7 +73,7 @@ class MainActivity : Activity() {
         addText(root, "DeviceLink", 26f)
         addText(
             root,
-            "Servizio locale in fase iniziale.\\n\\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
+            "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
         )
         status = addText(root, "")
         addButton(root, "Avvia servizio") { requestNotificationPermissionAndStart() }
@@ -102,22 +105,52 @@ class MainActivity : Activity() {
         addText(root, "App installate", 24f)
         addText(
             root,
-            "Queste sono le app che Android rende visibili nell'elenco delle app avviabili. Tocca un'app per aprirla. Non è un elenco completo dei pacchetti di sistema."
+            "Elenco delle app che Android rende visibili e avviabili. Cerca per nome o identificativo; tocca un risultato per aprirlo."
         )
 
-        val scrollView = ScrollView(this)
-        val list = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
         val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val activities = packageManager.queryIntentActivities(launcherIntent, 0)
             .distinctBy { it.activityInfo.packageName }
             .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
 
-        if (activities.isEmpty()) {
-            addText(list, "Nessuna app avviabile visibile ad Android.")
-        } else {
-            activities.forEach { resolveInfo ->
+        val search = EditText(this).apply {
+            hint = "Cerca un'app"
+            singleLine = true
+        }
+        root.addView(search, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+
+        val count = addText(root, "")
+        val scrollView = ScrollView(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scrollView.addView(list)
+        root.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+
+        fun renderApps(filter: String) {
+            list.removeAllViews()
+            val matches = activities.filter { info ->
+                val label = info.loadLabel(packageManager).toString()
+                label.contains(filter, ignoreCase = true) ||
+                    info.activityInfo.packageName.contains(filter, ignoreCase = true)
+            }
+            count.text = if (filter.isBlank()) {
+                "\${activities.size} app visibili"
+            } else {
+                "\${matches.size} risultati su \${activities.size}"
+            }
+
+            if (matches.isEmpty()) {
+                addText(list, "Nessuna app trovata.")
+                return
+            }
+
+            matches.forEach { resolveInfo ->
                 val appName = resolveInfo.loadLabel(packageManager).toString()
                 val packageName = resolveInfo.activityInfo.packageName
                 val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
@@ -126,17 +159,23 @@ class MainActivity : Activity() {
                         try {
                             startActivity(launchIntent)
                         } catch (_: Exception) {
-                            addText(root, "Impossibile aprire $appName.")
+                            count.text = "Impossibile aprire $appName."
                         }
                     }
                     addText(list, packageName, 12f)
                 }
             }
         }
-        scrollView.addView(list)
-        root.addView(scrollView, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-        ))
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                renderApps(s?.toString().orEmpty().trim())
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        renderApps("")
+
         addButton(root, "Indietro") { showSettings() }
         setContentView(root)
     }
