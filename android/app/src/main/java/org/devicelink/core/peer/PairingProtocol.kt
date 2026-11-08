@@ -25,6 +25,9 @@ data class PairingOffer(
         if (publicKeyEncoded.size !in MIN_PUBLIC_KEY_BYTES..MAX_PUBLIC_KEY_BYTES) {
             return PairingOfferValidation.InvalidPublicKey
         }
+        if (!DeviceIdentityStore.isSupportedPublicKey(publicKeyEncoded)) {
+            return PairingOfferValidation.InvalidPublicKey
+        }
         val expectedPeerId = try {
             DeviceIdentityStore.peerIdFor(publicKeyEncoded)
         } catch (_: IllegalArgumentException) {

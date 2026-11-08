@@ -2,12 +2,15 @@ package org.devicelink.core.peer
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import java.security.KeyPair
+import java.security.AlgorithmParameters
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECParameterSpec
+import java.security.interfaces.ECPublicKey
+import java.security.spec.X509EncodedKeySpec
 
 /**
  * Installation identity backed by Android Keystore.
@@ -47,9 +50,7 @@ class DeviceIdentityStore(
         if (publicKeyEncoded.isEmpty() || challenge.isEmpty() || signature.isEmpty()) return false
         return try {
             val keyFactory = java.security.KeyFactory.getInstance(KEY_ALGORITHM)
-            val publicKey = keyFactory.generatePublic(
-                java.security.spec.X509EncodedKeySpec(publicKeyEncoded)
-            )
+            val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(publicKeyEncoded))
             Signature.getInstance(SIGNATURE_ALGORITHM).run {
                 initVerify(publicKey)
                 update(challenge)
@@ -86,6 +87,24 @@ class DeviceIdentityStore(
         private const val KEY_ALGORITHM = "EC"
         private const val EC_CURVE = "secp256r1"
         private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
+
+        /** True only for a decodable EC public key using the exact P-256 domain parameters. */
+        fun isSupportedPublicKey(publicKeyEncoded: ByteArray): Boolean = try {
+            val key = java.security.KeyFactory.getInstance(KEY_ALGORITHM)
+                .generatePublic(X509EncodedKeySpec(publicKeyEncoded)) as? ECPublicKey
+                ?: return false
+            val expected = AlgorithmParameters.getInstance(KEY_ALGORITHM).run {
+                init(ECGenParameterSpec(EC_CURVE))
+                getParameterSpec(ECParameterSpec::class.java)
+            }
+            val actual = key.params
+            actual.curve == expected.curve &&
+                actual.generator == expected.generator &&
+                actual.order == expected.order &&
+                actual.cofactor == expected.cofactor
+        } catch (_: Exception) {
+            false
+        }
 
         /** Stable, platform-neutral identifier derived from the canonical public-key encoding. */
         fun peerIdFor(publicKeyEncoded: ByteArray): String {

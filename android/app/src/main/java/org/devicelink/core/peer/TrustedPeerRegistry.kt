@@ -45,6 +45,9 @@ class TrustedPeerRegistry(private val repository: TrustedPeerRepository) {
         if (publicKeyEncoded.size !in PairingOffer.MIN_PUBLIC_KEY_BYTES..PairingOffer.MAX_PUBLIC_KEY_BYTES) {
             return TrustPeerResult.InvalidIdentity
         }
+        if (!DeviceIdentityStore.isSupportedPublicKey(publicKeyEncoded)) {
+            return TrustPeerResult.InvalidIdentity
+        }
         val derivedPeerId = try {
             DeviceIdentityStore.peerIdFor(publicKeyEncoded)
         } catch (_: IllegalArgumentException) {

@@ -52,6 +52,10 @@ class TrustedPeerRegistryTest {
         val keyB = key()
         assertEquals(TrustPeerResult.InvalidIdentity, registry.trustAfterPairing(
             DeviceIdentityStore.peerIdFor(keyA), keyB, "Tablet", 1, completedState(), 1_000))
+        val malformedKey = ByteArray(91) { it.toByte() }
+        assertEquals(TrustPeerResult.InvalidIdentity, registry.trustAfterPairing(
+            DeviceIdentityStore.peerIdFor(malformedKey), malformedKey, "Tablet", 1,
+            completedState(), 1_000))
         assertEquals(TrustPeerResult.InvalidDisplayName, registry.trustAfterPairing(
             DeviceIdentityStore.peerIdFor(keyA), keyA, "  ", 1, completedState(), 1_000))
     }

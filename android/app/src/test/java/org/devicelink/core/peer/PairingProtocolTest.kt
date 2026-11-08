@@ -31,6 +31,14 @@ class PairingProtocolTest {
             PairingOfferValidation.PeerIdMismatch,
             offer.copy(peerId = "dl1:wrong").validate(now),
         )
+        val malformedKey = ByteArray(91) { it.toByte() }
+        assertEquals(
+            PairingOfferValidation.InvalidPublicKey,
+            offer.copy(
+                peerId = DeviceIdentityStore.peerIdFor(malformedKey),
+                publicKeyEncoded = malformedKey
+            ).validate(now),
+        )
         assertEquals(
             PairingOfferValidation.InvalidNonce,
             offer.copy(nonce = ByteArray(8)).validate(now),
