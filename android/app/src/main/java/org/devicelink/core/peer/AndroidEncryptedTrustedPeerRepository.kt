@@ -45,7 +45,11 @@ class AndroidEncryptedTrustedPeerRepository(
     override fun put(record: TrustedPeerRecord) {
         validateRecord(record)
         val records = readRecords()
-        require(records.containsKey(record.peerId) || records.size < MAX_RECORDS) {
+        val existing = records[record.peerId]
+        require(existing == null || existing.hasSamePublicKey(record.publicKeyEncoded)) {
+            "A trusted peer ID cannot be replaced with a different public key."
+        }
+        require(existing != null || records.size < MAX_RECORDS) {
             "Trusted peer limit reached."
         }
         records[record.peerId] = copyRecord(record)
@@ -192,6 +196,9 @@ class AndroidEncryptedTrustedPeerRepository(
     private fun validateRecord(record: TrustedPeerRecord) {
         require(record.peerId.toByteArray(StandardCharsets.UTF_8).size in 1..MAX_PEER_ID_BYTES)
         require(record.publicKeyEncoded.size in PairingOffer.MIN_PUBLIC_KEY_BYTES..MAX_PUBLIC_KEY_BYTES)
+        require(DeviceIdentityStore.isSupportedPublicKey(record.publicKeyEncoded)) {
+            "Trusted peer public key is not a supported EC P-256 key."
+        }
         require(DeviceIdentityStore.peerIdFor(record.publicKeyEncoded) == record.peerId) {
             "Trusted peer ID does not match its public key."
         }
