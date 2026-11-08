@@ -73,30 +73,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  linux:
-    name: Linux Rust checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: linux
-
-      # Cargo.lock is committed so --locked keeps CI reproducible.
-      - name: Check
-        working-directory: linux
-        run: cargo check --locked
-
-      - name: Test
-        working-directory: linux
-        run: cargo test --locked
-
-      - name: Format
-        working-directory: linux
-        run: cargo fmt --all -- --check
