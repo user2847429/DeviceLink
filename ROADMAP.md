@@ -23,10 +23,10 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 ## Phase 2 — Android peers
 
 - [x] Pure Kotlin peer lifecycle state model and transition tests (state logic only; no Android service or networking yet).
-- [x] Initial Android foreground peer service with explicit start/stop controls and persistent status notification (lifecycle only; no discovery or peer connection yet).
+- [x] Initial Android foreground peer service with explicit start/stop controls and persistent status notification.
 - [x] First-launch notification permission prompt and in-app permission status screen (notification and Android 17 local-network permission; local-network access is requested only when the user chooses it).
 - [x] Initial settings screen and launcher-visible app list with name/package search (launch-only; no broad package inventory permission).
-- [ ] Android-to-Android discovery over mDNS plus manual address/QR fallback.
+- [x] Initial Android local-network discovery and device list using mDNS/DNS-SD (CI build passes; real-device and cross-network testing pending; no connection is established).\n- [ ] Manual address and QR discovery fallback.
 - [ ] Authenticated encrypted session between two Android devices.
 - [ ] Reconnection and peer lifecycle tests.
 - [ ] Multi-peer session handling.
@@ -35,7 +35,7 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 
 - [ ] File send/receive with resumable chunks and SHA-256 verification.
 - [ ] Android share-sheet target ("Send to device").
-- [ ] Device list and per-peer capability permissions.
+- [x] Basic discovered-device list (display only; no connection or trust state).\n- [ ] Per-peer capability permissions.
 - [ ] Media-session control, prioritizing phone-to-tablet control.
 
 ## Later Android capabilities
