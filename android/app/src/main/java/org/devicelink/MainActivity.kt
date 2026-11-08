@@ -266,13 +266,15 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         ))
         addButton(root, "Aggiorna ricerca") {
-            startForegroundService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER)
+            startForegroundService(
+                Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER)
+            )
             devicesStatus?.text = "Ricerca aggiornata."
         }
         addButton(root, "Indietro") { showHome() }
         setContentView(root)
         registerPeerReceiver()
-        startService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER))
+        startForegroundService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER))
     }
 
     private fun registerPeerReceiver() {
