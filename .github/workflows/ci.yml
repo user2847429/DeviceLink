@@ -48,6 +48,10 @@ jobs:
             "build-tools;37.0.0" \
             "platform-tools"
 
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle --no-daemon :app:testDebugUnitTest
+
       - name: Assemble debug APK
         working-directory: android
         shell: bash
