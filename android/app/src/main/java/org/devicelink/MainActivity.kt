@@ -32,7 +32,7 @@ class MainActivity : Activity() {
     private var startAfterPermissionGrant = false
     private var showingPermissionScreen = false
     private var peerReceiverRegistered = false
-    private val discoveredPeers = linkedMapOf<String, String>()
+    private val discoveredPeers = linkedMapOf<String, Pair<String, Int>>()
     private var devicesList: LinearLayout? = null
     private var devicesStatus: TextView? = null
 
@@ -43,7 +43,7 @@ class MainActivity : Activity() {
                     val name = intent.getStringExtra(PeerService.EXTRA_SERVICE_NAME) ?: return
                     val host = intent.getStringExtra(PeerService.EXTRA_HOST).orEmpty()
                     val port = intent.getIntExtra(PeerService.EXTRA_PORT, 0)
-                    discoveredPeers[name] = name + "\n" + host + ":" + port
+                    discoveredPeers[name] = host to port
                     renderDiscoveredPeers()
                 }
                 PeerService.ACTION_PEER_LOST -> {
@@ -53,6 +53,10 @@ class MainActivity : Activity() {
                 PeerService.ACTION_DISCOVERY_ERROR -> {
                     devicesStatus?.text = intent.getStringExtra(PeerService.EXTRA_MESSAGE)
                         ?: "Errore durante la ricerca."
+                }
+                PeerService.ACTION_TCP_PROBE_RESULT -> {
+                    devicesStatus?.text = intent.getStringExtra(PeerService.EXTRA_MESSAGE)
+                        ?: "Test TCP terminato."
                 }
                 PeerService.ACTION_DISCOVERY_STATUS -> {
                     if (discoveredPeers.isEmpty()) {
@@ -290,6 +294,7 @@ class MainActivity : Activity() {
             addAction(PeerService.ACTION_PEER_LOST)
             addAction(PeerService.ACTION_DISCOVERY_ERROR)
             addAction(PeerService.ACTION_DISCOVERY_STATUS)
+            addAction(PeerService.ACTION_TCP_PROBE_RESULT)
         }
         registerReceiver(peerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         peerReceiverRegistered = true
@@ -311,7 +316,19 @@ class MainActivity : Activity() {
             return
         }
         devicesStatus?.text = "Trovati " + discoveredPeers.size + " dispositivi."
-        discoveredPeers.values.forEach { details -> addText(list, details) }
+        discoveredPeers.forEach { (name, endpoint) ->
+            val (host, port) = endpoint
+            addText(list, "$name\n$host:$port")
+            addButton(list, "Verifica collegamento TCP") {
+                val intent = Intent(this, PeerService::class.java)
+                    .setAction(PeerService.ACTION_TCP_PROBE)
+                    .putExtra(PeerService.EXTRA_SERVICE_NAME, name)
+                    .putExtra(PeerService.EXTRA_HOST, host)
+                    .putExtra(PeerService.EXTRA_PORT, port)
+                startService(intent)
+                devicesStatus?.text = "Verifico il collegamento TCP con $name…"
+            }
+        }
     }
 
     override fun onDestroy() {
