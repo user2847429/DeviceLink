@@ -43,7 +43,7 @@ class MainActivity : Activity() {
                     val name = intent.getStringExtra(PeerService.EXTRA_SERVICE_NAME) ?: return
                     val host = intent.getStringExtra(PeerService.EXTRA_HOST).orEmpty()
                     val port = intent.getIntExtra(PeerService.EXTRA_PORT, 0)
-                    discoveredPeers[name] = name + "\\n" + host + ":" + port
+                    discoveredPeers[name] = name + "\n" + host + ":" + port
                     renderDiscoveredPeers()
                 }
                 PeerService.ACTION_PEER_LOST -> {
@@ -266,7 +266,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         ))
         addButton(root, "Aggiorna ricerca") {
-            startService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER))
+            startForegroundService(Intent(this, PeerService::class.java).setAction(PeerService.ACTION_DISCOVER)
             devicesStatus?.text = "Ricerca aggiornata."
         }
         addButton(root, "Indietro") { showHome() }
