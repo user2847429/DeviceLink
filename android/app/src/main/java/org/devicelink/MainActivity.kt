@@ -115,7 +115,7 @@ class MainActivity : Activity() {
 
         val search = EditText(this).apply {
             hint = "Cerca un'app"
-            singleLine = true
+            setSingleLine(true)
         }
         root.addView(search, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
