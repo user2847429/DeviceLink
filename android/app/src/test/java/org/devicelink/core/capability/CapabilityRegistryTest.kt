@@ -15,6 +15,8 @@ class CapabilityRegistryTest {
         registry.register(descriptor)
         assertEquals(descriptor, registry.find("device.apps"))
         assertEquals(listOf(descriptor), registry.all())
+        assertTrue(registry.supports("device.apps", "launch"))
+        assertFalse(registry.supports("device.apps", "delete"))
     }
 
     @Test fun rejectsDuplicateCapabilityIds() {
@@ -40,5 +42,19 @@ class CapabilityRegistryTest {
             )
             fail("Expected duplicate operation ids to fail")
         } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun registryKeepsItsOwnSnapshotOfDescriptorCollections() {
+        val registry = CapabilityRegistry()
+        val operations = mutableListOf(CapabilityOperation("list"))
+        val grants = mutableSetOf("files.read")
+        val descriptor = CapabilityDescriptor("device.files", 1, operations, grants)
+
+        registry.register(descriptor)
+        operations.clear()
+        grants.clear()
+
+        assertTrue(registry.supports("device.files", "list"))
+        assertEquals(setOf("files.read"), registry.find("device.files")?.requiredGrants)
     }
 }
