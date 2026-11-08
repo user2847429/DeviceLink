@@ -71,6 +71,11 @@ class MainActivity : Activity() {
         updateNotificationStatus()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::status.isInitialized) updateNotificationStatus()
+    }
+
     private fun requestNotificationPermissionAndStart() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -88,7 +93,7 @@ class MainActivity : Activity() {
     private fun startServiceIfNotificationsEnabled() {
         val manager = getSystemService(NotificationManager::class.java)
         if (!manager.areNotificationsEnabled()) {
-            status.text = "Le notifiche di DeviceLink sono disattivate. Abilitalе nelle impostazioni e riprova."
+            status.text = "Le notifiche di DeviceLink sono disattivate. Abilita nelle impostazioni e riprova."
             openNotificationSettings()
             return
         }
