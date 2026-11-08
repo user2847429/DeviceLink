@@ -22,7 +22,8 @@ class NsdPeerDiscovery(
     context: Context,
     private val onPeerFound: (DiscoveredPeer) -> Unit,
     private val onPeerLost: (String) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    private val onStatus: (String) -> Unit
 ) {
     private val nsdManager = context.getSystemService(NsdManager::class.java)
     private var serverSocket: ServerSocket? = null
@@ -78,7 +79,7 @@ class NsdPeerDiscovery(
             registrationListener = registration
             nsdManager.registerService(service, NsdManager.PROTOCOL_DNS_SD, registration)
         } catch (e: Exception) {
-            onError("Impossibile avviare la ricerca nella rete locale.")
+            onError("Impossibile avviare la ricerca nella rete locale: ${e.javaClass.simpleName}: ${e.message ?: "errore senza dettagli"}.")
             stop()
         }
     }
@@ -86,19 +87,24 @@ class NsdPeerDiscovery(
     private fun beginDiscovery() {
         if (!running || discoveryListener != null) return
         val listener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) = Unit
+            override fun onDiscoveryStarted(serviceType: String) {
+                onStatus("Ricerca mDNS attiva. In attesa di dispositivi DeviceLink…")
+            }
             override fun onServiceFound(info: NsdServiceInfo) {
                 if (info.serviceName == ownServiceName || !info.serviceType.endsWith(SERVICE_TYPE)) return
+                onStatus("Rilevato un annuncio DeviceLink; verifica indirizzo in corso…")
                 if (!resolving.add(info.serviceName)) return
                 nsdManager.resolveService(info, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                         resolving.remove(serviceInfo.serviceName)
+                        onError("Trovato ${serviceInfo.serviceName}, ma impossibile risolvere l'indirizzo (codice $errorCode).")
                     }
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                         resolving.remove(serviceInfo.serviceName)
                         val host = serviceInfo.host?.hostAddress ?: return
                         if (running) {
                             onPeerFound(DiscoveredPeer(serviceInfo.serviceName, host, serviceInfo.port))
+                            onStatus("Dispositivo trovato: ${serviceInfo.serviceName}.")
                         }
                     }
                 })
@@ -106,9 +112,11 @@ class NsdPeerDiscovery(
             override fun onServiceLost(info: NsdServiceInfo) {
                 onPeerLost(info.serviceName)
             }
-            override fun onDiscoveryStopped(serviceType: String) = Unit
+            override fun onDiscoveryStopped(serviceType: String) {
+                onStatus("Ricerca mDNS arrestata.")
+            }
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                onError("Ricerca dispositivi non riuscita (codice $errorCode).")
+                onError("Avvio ricerca mDNS non riuscito (codice $errorCode). Controlla rete locale e Wi-Fi/hotspot.")
                 stop()
             }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
