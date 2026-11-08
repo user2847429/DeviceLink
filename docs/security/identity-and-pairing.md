@@ -39,10 +39,17 @@ network, IP address, or discovery route must not change the identity.
   replace the local identity. Platform-specific key material never crosses
   the protocol boundary.
 
-The initial interoperable signature profile should use a widely supported
-standard curve and encoding. The exact algorithm and library versions must be
-selected and tested before wire compatibility is frozen. DeviceLink must not
-implement cryptographic primitives itself.
+The Android implementation now has an initial identity primitive: an EC
+P-256 (`secp256r1`) key pair generated in Android Keystore, with ECDSA/SHA-256
+signatures. The stable peer ID is `dl1:` followed by the SHA-256 fingerprint
+of the DER-encoded SubjectPublicKeyInfo. The private key is not exported.
+
+This is only local identity storage and challenge signing. It does not yet
+provide certificates, mutual TLS, QR exchange, pairing, or trusted-peer
+storage. Those features must bind this public key to the reviewed TLS 1.3
+session before any application data is accepted. Future platform clients must
+implement the same public-key encoding, signature profile, and peer-ID rule.
+DeviceLink must not implement cryptographic primitives itself.
 
 ## Pairing flow
 
