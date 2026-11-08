@@ -119,4 +119,33 @@ mod tests {
         message.payload = vec![0; MAX_CONTROL_PAYLOAD_BYTES + 1];
         assert_eq!(message.validate(), Err(ValidationError::PayloadTooLarge));
     }
+
+    #[test]
+    fn accepts_identifier_lengths_at_the_limit() {
+        let mut message = valid_message();
+        message.message_id = "m".repeat(MAX_MESSAGE_ID_BYTES);
+        message.sender_peer_id = "p".repeat(MAX_PEER_ID_BYTES);
+        assert_eq!(message.validate(), Ok(()));
+    }
+
+    #[test]
+    fn rejects_identifiers_over_the_byte_limit() {
+        let mut message = valid_message();
+        message.message_id = "m".repeat(MAX_MESSAGE_ID_BYTES + 1);
+        assert_eq!(message.validate(), Err(ValidationError::MessageIdTooLong));
+
+        message = valid_message();
+        message.sender_peer_id = "p".repeat(MAX_PEER_ID_BYTES + 1);
+        assert_eq!(message.validate(), Err(ValidationError::PeerIdTooLong));
+    }
+
+    #[test]
+    fn identifier_limits_are_measured_in_utf8_bytes() {
+        let mut message = valid_message();
+        message.message_id = "é".repeat(MAX_MESSAGE_ID_BYTES / 2);
+        assert_eq!(message.validate(), Ok(()));
+
+        message.message_id.push('é');
+        assert_eq!(message.validate(), Err(ValidationError::MessageIdTooLong));
+    }
 }
