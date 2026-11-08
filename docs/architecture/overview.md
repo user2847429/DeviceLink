@@ -20,10 +20,23 @@ validated inputs and explicit authorization requirements.
 - **Privilege broker:** narrowly named and validated privileged operations.
   No capability receives a general shell or unrestricted system access.
 
+## Capability contracts and authorization
+
 A capability descriptor has a stable namespaced ID, its own version, a list of
 operation IDs, and the grants it requires. Individual sensitive operations can
-require explicit user approval. Availability is negotiated per peer and may
-differ by OS version, ROM, permissions, or installed adapters.
+require explicit user approval.
+
+The local registry stores metadata only. The typed request model and pure
+authorization policy now provide an initial boundary for future dispatch:
+requests are size-limited and checked against the authenticated session
+context, trusted-peer status, local capability ID and version, exact operation
+allowlist, required grants, and explicit approval for sensitive operations.
+
+These checks do not execute anything, grant Android permissions, establish a
+session, or prove that a caller supplied trustworthy session facts. The future
+session layer must create the peer context only after cryptographic
+authentication. Each operation must also validate its own payload schema
+before an Android adapter is called.
 
 ## Composition
 
@@ -43,14 +56,6 @@ IDs, versioning, and protocol semantics platform-neutral so future independent
 implementations can interoperate. Android-specific implementation remains
 behind adapters. Do not build Linux, Windows, or macOS applications as part of
 the current phase.
-
-## Current code scaffold
-
-The Android project contains `CapabilityDescriptor` and
-`CapabilityRegistry`. They validate and catalogue local capability metadata.
-They do not execute operations, advertise capabilities over the network, or
-grant permissions. Those steps must wait for authenticated sessions,
-authorization policy, and a frozen wire representation.
 
 ## Planned initial modules
 
