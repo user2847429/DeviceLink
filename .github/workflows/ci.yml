@@ -44,8 +44,8 @@ jobs:
       - name: Install Android SDK packages
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platforms;android-37" \
-            "build-tools;36.0.0" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
             "platform-tools"
 
       - name: Assemble debug APK
