@@ -1,6 +1,6 @@
 # Device identity and pairing
 
-**Status:** implementation in progress. Local Android identity storage, pairing-offer validation, confirmation-code derivation primitives, and a two-sided confirmation state model exist. QR UI, trusted-peer persistence, authenticated transport, and end-to-end pairing are not implemented. This is not a security audit.
+**Status:** implementation in progress. Local Android identity storage, pairing-offer validation, confirmation-code derivation primitives, two-sided confirmation, and a trusted-peer registry policy exist. Encrypted persistence, QR UI, authenticated transport, and end-to-end pairing are not implemented. This is not a security audit.
 
 ## Goals
 
@@ -67,4 +67,4 @@ The intended transport is TLS 1.3 with strict peer authentication bound to the p
 - Add shared interoperability fixtures and replay, expiry, key-change, and interrupted-pairing tests.
 - Review backup, reinstall, reset, and key-loss behavior.
 
-The pairing primitives currently implemented are building blocks only. They are not a complete pairing feature and must not be used to trust a remote peer yet.
+The platform-neutral TrustedPeerRegistry permits a trust record only after both confirmations, before expiry, and only when the peer ID matches the supplied public key. It rejects identity substitution and makes revocation explicit. The repository is an interface only: no production persistence backend is wired yet. A production Android repository must encrypt records at rest, make writes atomic, and terminate active sessions on revocation. These primitives are not a complete pairing feature and must not be used to trust a remote peer over the network yet.
