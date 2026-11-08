@@ -157,7 +157,7 @@ class AndroidEncryptedTrustedPeerRepository(
             records.values.sortedBy { it.peerId }.forEach { record ->
                 validateRecord(record)
                 output.writeString(record.peerId, MAX_PEER_ID_BYTES)
-                output.writeString(record.publicKeyEncoded, MAX_PUBLIC_KEY_BYTES)
+                output.writeBytesField(record.publicKeyEncoded, MAX_PUBLIC_KEY_BYTES)
                 output.writeString(record.displayName, TrustedPeerRegistry.MAX_DISPLAY_NAME_BYTES)
                 output.writeLong(record.pairedAtEpochMillis)
                 output.writeInt(record.protocolVersion)
@@ -256,9 +256,9 @@ class AndroidEncryptedTrustedPeerRepository(
         private const val MAX_PUBLIC_KEY_BYTES = 1024
         private const val MAX_PLAINTEXT_BYTES = 512 * 1024
         private const val MAX_CIPHERTEXT_BYTES = MAX_PLAINTEXT_BYTES + GCM_TAG_BYTES
+        private const val HEADER_BYTES = 10
         private const val MAX_ENVELOPE_BYTES = HEADER_BYTES + GCM_IV_BYTES + MAX_CIPHERTEXT_BYTES
         private const val MIN_ENVELOPE_BYTES = HEADER_BYTES + GCM_IV_BYTES + GCM_TAG_BYTES
-        private const val HEADER_BYTES = 10
         private val MAGIC = byteArrayOf(0x44, 0x4c, 0x54, 0x50) // DLTP
     }
 }
