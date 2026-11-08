@@ -23,7 +23,7 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 ## Phase 2 — Android peers
 
 - [x] Pure Kotlin peer lifecycle state model and transition tests (state logic only; no Android service or networking yet).
-- [ ] Android device can start/stop its peer service and expose status.
+- [x] Initial Android foreground peer service with explicit start/stop controls and persistent status notification (lifecycle only; no discovery or peer connection yet).
 - [ ] Android-to-Android discovery over mDNS plus manual address/QR fallback.
 - [ ] Authenticated encrypted session between two Android devices.
 - [ ] Reconnection and peer lifecycle tests.
