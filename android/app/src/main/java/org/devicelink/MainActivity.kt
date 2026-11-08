@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import org.devicelink.core.peer.PeerService
 
@@ -69,7 +70,7 @@ class MainActivity : Activity() {
         addText(root, "DeviceLink", 26f)
         addText(
             root,
-            "Servizio locale in fase iniziale.\n\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
+            "Servizio locale in fase iniziale.\\n\\nL'avvio mostra una notifica persistente. La ricerca di dispositivi e le connessioni non sono ancora implementate."
         )
         status = addText(root, "")
         addButton(root, "Avvia servizio") { requestNotificationPermissionAndStart() }
@@ -78,9 +79,66 @@ class MainActivity : Activity() {
             startService(intent)
             status.text = "Richiesta di arresto inviata."
         }
-        addButton(root, "Controllo permessi") { showPermissionScreen() }
+        addButton(root, "Impostazioni") { showSettings() }
         setContentView(root)
         updateHomeStatus()
+    }
+
+    private fun showSettings() {
+        showingPermissionScreen = false
+        root = createRoot()
+        addText(root, "Impostazioni", 24f)
+        addText(root, "Gestisci le autorizzazioni e le funzioni locali di DeviceLink.")
+        addButton(root, "Controllo permessi") { showPermissionScreen() }
+        addButton(root, "App installate") { showInstalledApps() }
+        addButton(root, "Impostazioni Android") { openAppSettings() }
+        addButton(root, "Torna alla schermata principale") { showHome() }
+        setContentView(root)
+    }
+
+    private fun showInstalledApps() {
+        showingPermissionScreen = false
+        root = createRoot()
+        addText(root, "App installate", 24f)
+        addText(
+            root,
+            "Queste sono le app che Android rende visibili nell'elenco delle app avviabili. Tocca un'app per aprirla. Non è un elenco completo dei pacchetti di sistema."
+        )
+
+        val scrollView = ScrollView(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = packageManager.queryIntentActivities(launcherIntent, 0)
+            .distinctBy { it.activityInfo.packageName }
+            .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
+
+        if (activities.isEmpty()) {
+            addText(list, "Nessuna app avviabile visibile ad Android.")
+        } else {
+            activities.forEach { resolveInfo ->
+                val appName = resolveInfo.loadLabel(packageManager).toString()
+                val packageName = resolveInfo.activityInfo.packageName
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    addButton(list, appName) {
+                        try {
+                            startActivity(launchIntent)
+                        } catch (_: Exception) {
+                            addText(root, "Impossibile aprire $appName.")
+                        }
+                    }
+                    addText(list, packageName, 12f)
+                }
+            }
+        }
+        scrollView.addView(list)
+        root.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        addButton(root, "Indietro") { showSettings() }
+        setContentView(root)
     }
 
     private fun showPermissionScreen() {
@@ -101,8 +159,8 @@ class MainActivity : Activity() {
             "Servirà per trovare e collegare gli altri dispositivi nella rete Wi-Fi o hotspot."
         )
         addText(root, "Le autorizzazioni possono essere revocate in qualsiasi momento dalle impostazioni Android.")
-        addButton(root, "Impostazioni app") { openAppSettings() }
-        addButton(root, "Torna alla schermata principale") { showHome() }
+        addButton(root, "Impostazioni Android") { openAppSettings() }
+        addButton(root, "Indietro") { showSettings() }
         setContentView(root)
     }
 
@@ -178,12 +236,12 @@ class MainActivity : Activity() {
                 val shouldStart = startAfterPermissionGrant
                 startAfterPermissionGrant = false
                 if (granted && shouldStart) startServiceIfNotificationsEnabled()
-                else if (!granted) status.text = "Permesso notifiche negato. Puoi modificarlo da Controllo permessi."
+                else if (!granted) status.text = "Permesso notifiche negato. Puoi modificarlo da Impostazioni."
             }
             REQUEST_FIRST_LAUNCH_PERMISSION -> {
                 if (::status.isInitialized) {
                     status.text = if (granted) "Permesso notifiche concesso." else
-                        "Permesso notifiche non concesso. Puoi modificarlo da Controllo permessi."
+                        "Permesso notifiche non concesso. Puoi modificarlo da Impostazioni."
                 }
             }
             REQUEST_DASHBOARD_PERMISSION -> showPermissionScreen()
