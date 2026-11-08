@@ -50,7 +50,20 @@ jobs:
 
       - name: Assemble debug APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleDebug
+        shell: bash
+        run: |
+          # Retry transient repository/CDN failures (for example HTTP 504).
+          for attempt in 1 2 3; do
+            echo "Android build attempt ${attempt}/3"
+            if gradle --no-daemon :app:assembleDebug; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Build failed; retrying in 20 seconds..."
+              sleep 20
+            fi
+          done
+          exit 1
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
