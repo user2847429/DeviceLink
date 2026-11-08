@@ -1,28 +1,28 @@
 # DeviceLink
 
-**Local, private, peer-to-peer connectivity for Android and Linux.**
+**Local, private, peer-to-peer connectivity for Android devices.**
 
-DeviceLink is an open-source project to connect multiple devices directly over a local network. Every peer can provide and consume capabilities: there is no permanent client/server role, account, cloud relay, or dependency on Google Play Services.
+DeviceLink is an open-source project for connecting multiple devices directly over a local network. Every peer can provide and consume capabilities: there is no permanent client/server role, account, cloud relay, or dependency on Google Play Services.
 
-> **Project status: early scaffold.** The repository currently contains the initial architecture, protocol direction, Android/Linux build skeleton, and CI. The connection protocol and product features are not implemented yet.
+> **Project status: early scaffold.** Android is the only active application target for the initial development phase. The repository contains architecture notes, early protocol models, an Android build skeleton, and CI. Device-to-device networking, secure pairing, and product features are not implemented yet.
 
 ## Goals
 
-- Android ↔ Android and Android ↔ Linux, with multi-peer groups.
+- Android ↔ Android connectivity, including multi-peer groups.
 - Local-first operation over Wi-Fi or a phone hotspot; internet access is not required.
 - Encrypted peer connections and explicit per-device, per-capability permissions.
-- Small core with documented, extensible feature modules.
+- A small, extensible core with documented feature modules.
 - Free/open-source software, with no Google Play Services, Firebase, or cloud account requirement.
 
-## Platforms
+## Platform strategy
 
-| Component | Initial implementation |
+| Area | Current scope |
 |---|---|
-| Android app | Kotlin; minimum Android 15 (API 35), target Android 17 (API 37) |
-| Linux peer | Rust; user-session daemon, with desktop integration through D-Bus |
-| Shared contract | Versioned, language-neutral protocol specification and interoperability tests |
+| Android app | **Active development target** — Kotlin; minimum Android 15 (API 35), target Android 17 (API 37) |
+| Protocol and data formats | Platform-neutral specifications, designed to allow future independent implementations |
+| Linux, Windows, macOS | Possible future community ports; no application, interface, or active implementation planned now |
 
-Windows is out of scope.
+The initial project will focus on Android-to-Android use. Future operating systems should be able to implement the documented protocol without requiring changes to the Android app or its user interface. Platform-specific code will remain behind clear boundaries.
 
 ## Architecture at a glance
 
@@ -43,26 +43,17 @@ These are roadmap items, **not implemented features**. Some depend on Android ve
 
 ## Build
 
-The initial CI builds the Android debug APK and checks/tests the Linux Rust workspace. Local prerequisites:
+The active CI target is the Android debug APK. Local prerequisites:
 
 - JDK 17
 - Android SDK Platform 37.0 and Build Tools 37.0.0
 - Gradle 9.8.2 (or the Gradle version supplied by your distribution)
-- Rust stable toolchain
 
 Android:
 
 ```sh
 cd android
 gradle --no-daemon :app:assembleDebug
-```
-
-Linux:
-
-```sh
-cd linux
-cargo check --locked
-cargo test --locked
 ```
 
 ## Development status
