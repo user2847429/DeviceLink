@@ -27,6 +27,10 @@ class PeerService : Service() {
             ACTION_START -> startForegroundServiceNotification()
             ACTION_DISCOVER -> {
                 startForegroundServiceNotification()
+                if (discovery != null) {
+                    discovery?.stop()
+                    discovery = null
+                }
                 startDiscovery()
             }
             ACTION_STOP -> {
@@ -73,6 +77,11 @@ class PeerService : Service() {
                 sendPeerEvent(ACTION_DISCOVERY_ERROR) {
                     putExtra(EXTRA_MESSAGE, message)
                 }
+            },
+            onStatus = { message ->
+                sendPeerEvent(ACTION_DISCOVERY_STATUS) {
+                    putExtra(EXTRA_MESSAGE, message)
+                }
             }
         ).also { it.start() }
     }
@@ -117,6 +126,7 @@ class PeerService : Service() {
         const val ACTION_PEER_FOUND = "org.devicelink.action.PEER_FOUND"
         const val ACTION_PEER_LOST = "org.devicelink.action.PEER_LOST"
         const val ACTION_DISCOVERY_ERROR = "org.devicelink.action.DISCOVERY_ERROR"
+        const val ACTION_DISCOVERY_STATUS = "org.devicelink.action.DISCOVERY_STATUS"
         const val EXTRA_SERVICE_NAME = "service_name"
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
