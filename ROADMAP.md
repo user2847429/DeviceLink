@@ -13,8 +13,8 @@ This roadmap is provisional. Items are goals, not promises or implemented featur
 ## Phase 1 — protocol and threat model
 
 - [x] Initial threat model and trust boundaries (draft; requires review as implementation evolves).
-- [ ] Device identity and key lifecycle.
-- [ ] Pairing flow (QR and short authentication code).
+- [x] Initial device identity and key lifecycle design (draft; platform/library choices still need validation).
+- [x] Initial pairing flow design (QR and session-bound short authentication code; implementation pending).
 - [ ] Versioned control messages and capability negotiation.
 - [ ] Interoperability fixtures shared by Kotlin and Rust.
 
