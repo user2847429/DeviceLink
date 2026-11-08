@@ -140,9 +140,9 @@ class MainActivity : Activity() {
                     info.activityInfo.packageName.contains(filter, ignoreCase = true)
             }
             count.text = if (filter.isBlank()) {
-                "\${activities.size} app visibili"
+                "${activities.size} app visibili"
             } else {
-                "\${matches.size} risultati su \${activities.size}"
+                "${matches.size} risultati su ${activities.size}"
             }
 
             if (matches.isEmpty()) {
