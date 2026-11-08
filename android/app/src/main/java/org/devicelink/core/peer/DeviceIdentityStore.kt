@@ -37,7 +37,7 @@ class DeviceIdentityStore(
     fun sign(challenge: ByteArray): ByteArray {
         require(challenge.isNotEmpty()) { "Challenge must not be empty." }
         val keyStore = loadKeyStore()
-        val entry = keyStore.getEntry(alias, null) as? KeyStore.PrivateKeyEntry
+        val entry = keyStore.getEntry(keyAlias, null) as? KeyStore.PrivateKeyEntry
             ?: createKeyEntry(keyStore)
         return Signature.getInstance(SIGNATURE_ALGORITHM).run {
             initSign(entry.privateKey)
