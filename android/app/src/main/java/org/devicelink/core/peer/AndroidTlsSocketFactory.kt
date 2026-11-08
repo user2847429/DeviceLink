@@ -6,6 +6,9 @@ import java.net.InetSocketAddress
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.KeyManager
+import javax.net.ssl.X509ExtendedKeyManager
+import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
@@ -106,12 +109,68 @@ class AndroidTlsSocketFactory(
 
         val keyManagers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).run {
             init(keyStore, null)
-            keyManagers
+            keyManagers.map { manager ->
+                val extended = manager as? X509ExtendedKeyManager
+                    ?: throw SSLException("Android TLS provider does not expose an X.509 key manager.")
+                PinnedLocalIdentityKeyManager(extended, identityStore.keyAlias, identity.publicKeyEncoded)
+            }.toTypedArray<KeyManager>()
         }
         val trustManager = PinnedPeerTrustManager(expectedPublicKey)
         return SSLContext.getInstance("TLS").apply {
             init(keyManagers, arrayOf(trustManager), null)
         }
+    }
+
+
+    /**
+     * Forces both TLS roles to present the exact Android Keystore identity
+     * selected by DeviceIdentityStore. The platform key manager remains
+     * responsible for retrieving the non-exportable private key and signing.
+     */
+    private class PinnedLocalIdentityKeyManager(
+        private val delegate: X509ExtendedKeyManager,
+        private val alias: String,
+        expectedPublicKeyEncoded: ByteArray,
+    ) : X509ExtendedKeyManager() {
+        private val expectedKey = expectedPublicKeyEncoded.clone()
+
+        private fun usableAlias(keyType: String?): String? {
+            if (keyType == null || !keyType.contains("EC", ignoreCase = true)) return null
+            val privateKey = delegate.getPrivateKey(alias) ?: return null
+            if (!privateKey.algorithm.equals("EC", ignoreCase = true)) return null
+            val chain = delegate.getCertificateChain(alias) ?: return null
+            val leaf = chain.firstOrNull() ?: return null
+            if (!MessageDigest.isEqual(expectedKey, leaf.publicKey.encoded)) return null
+            return alias
+        }
+
+        override fun chooseClientAlias(
+            keyType: Array<out String>?, issuers: Array<out java.security.Principal>?, socket: Socket?
+        ): String? = keyType?.firstNotNullOfOrNull(::usableAlias)
+
+        override fun chooseServerAlias(
+            keyType: String?, issuers: Array<out java.security.Principal>?, socket: Socket?
+        ): String? = usableAlias(keyType)
+
+        override fun chooseEngineClientAlias(
+            keyType: Array<out String>?, issuers: Array<out java.security.Principal>?, engine: SSLEngine?
+        ): String? = keyType?.firstNotNullOfOrNull(::usableAlias)
+
+        override fun chooseEngineServerAlias(
+            keyType: String?, issuers: Array<out java.security.Principal>?, engine: SSLEngine?
+        ): String? = usableAlias(keyType)
+
+        override fun getCertificateChain(alias: String?) =
+            if (alias == this.alias) delegate.getCertificateChain(alias) else null
+
+        override fun getPrivateKey(alias: String?) =
+            if (alias == this.alias) delegate.getPrivateKey(alias) else null
+
+        override fun getClientAliases(keyType: String?, issuers: Array<out java.security.Principal>?) =
+            usableAlias(keyType)?.let { arrayOf(it) }
+
+        override fun getServerAliases(keyType: String?, issuers: Array<out java.security.Principal>?) =
+            usableAlias(keyType)?.let { arrayOf(it) }
     }
 
     private class PinnedPeerTrustManager(
