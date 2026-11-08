@@ -47,20 +47,22 @@ The initial CI builds the Android debug APK and checks/tests the Linux Rust work
 
 - JDK 17
 - Android SDK Platform 37 and Build Tools 36.0.0
-- Gradle 9.6.0 (or use the version configured by CI)
+- Gradle 9.8.2 (or the Gradle version supplied by your distribution)
 - Rust stable toolchain
 
 Android:
 
 ```sh
-gradle :android:app:assembleDebug
+cd android
+gradle --no-daemon :app:assembleDebug
 ```
 
 Linux:
 
 ```sh
-cargo check --workspace
-cargo test --workspace
+cd linux
+cargo check --locked
+cargo test --locked
 ```
 
 ## Development status
