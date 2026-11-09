@@ -82,7 +82,9 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            gradle --no-daemon -p android :app:connectedDebugAndroidTest || gradle_status=$?
+            set +e
+            gradle --no-daemon -p android :app:connectedDebugAndroidTest
+            test_status=$?
             mkdir -p android/test-diagnostics
             echo "===== ANDROID TEST XML RESULTS ====="
             find android/app/build/outputs/androidTest-results android/app/build/reports/androidTests -type f -name '*.xml' -print -exec cat {} + 2>/dev/null | tee android/test-diagnostics/test-results.txt || true
@@ -91,10 +93,8 @@ jobs:
             echo "===== COMPLETE DEVICE LOGCAT ====="
             adb logcat -d > android/test-diagnostics/emulator-logcat.txt 2>&1 || true
             grep -E -i 'AndroidJUnitRunner|Instrumentation|FATAL EXCEPTION|SSL|KeyStore|DeviceIdentity|AndroidTls|TestRunner|INSTRUMENTATION_STATUS' android/test-diagnostics/emulator-logcat.txt | tail -n 400 || true
-            if [ "${gradle_status:-0}" -ne 0 ]; then
-              echo "Android instrumentation tests failed with exit code $gradle_status"
-              false
-            fi
+            echo "Instrumentation test exit code: $test_status"
+            exit "$test_status"
 
       - name: Upload instrumentation diagnostics
         if: always()
