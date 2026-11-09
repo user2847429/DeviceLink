@@ -40,11 +40,9 @@ jobs:
           exit "$status"
 
       - name: Install Android SDK packages
+        shell: bash
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \\
-            "platforms;android-37.0" \\
-            "build-tools;37.0.0" \\
-            "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
       - name: Run Android unit tests
         working-directory: android
