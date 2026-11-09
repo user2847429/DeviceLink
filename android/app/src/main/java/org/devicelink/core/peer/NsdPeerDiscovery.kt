@@ -10,6 +10,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.Socket
 import java.net.SocketException
 import java.net.NetworkInterface
 import java.util.UUID
@@ -31,7 +32,8 @@ class NsdPeerDiscovery(
     private val onPeerFound: (DiscoveredPeer) -> Unit,
     private val onPeerLost: (String) -> Unit,
     private val onError: (String) -> Unit,
-    private val onStatus: (String) -> Unit
+    private val onStatus: (String) -> Unit,
+    private val onSocketAccepted: (Socket) -> Unit = { socket -> socket.close() },
 ) {
     private val appContext = context.applicationContext
     private val nsdManager = appContext.getSystemService(NsdManager::class.java)
@@ -56,7 +58,17 @@ class NsdPeerDiscovery(
             Thread({
                 while (running) {
                     try {
-                        listener.accept().use { /* Placeholder only; no protocol is implemented yet. */ }
+                        val accepted = listener.accept()
+                        if (running) {
+                            try {
+                                onSocketAccepted(accepted)
+                            } catch (error: Exception) {
+                                try { accepted.close() } catch (_: Exception) { }
+                                if (running) onError("Gestione della connessione TCP in ingresso non riuscita.")
+                            }
+                        } else {
+                            accepted.close()
+                        }
                     } catch (_: SocketException) {
                         break
                     } catch (_: Exception) {
