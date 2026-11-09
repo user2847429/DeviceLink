@@ -30,8 +30,6 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # GitHub's Ubuntu runner already includes the Android SDK.
-      # Avoid the retired "tools" SDK package requested by older setup actions.
       - name: Accept Android SDK licenses
         shell: bash
         run: |
@@ -56,7 +54,6 @@ jobs:
         working-directory: android
         shell: bash
         run: |
-          # Retry transient repository/CDN failures (for example HTTP 504).
           for attempt in 1 2 3; do
             echo "Android build attempt ${attempt}/3"
             if gradle --no-daemon :app:assembleDebug; then
@@ -69,7 +66,6 @@ jobs:
           done
           exit 1
 
-      # Explicitly expose KVM to the runner before launching the x86_64 emulator.
       - name: Enable KVM for Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -86,9 +82,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            set +e
-            gradle --no-daemon -p android :app:connectedDebugAndroidTest
-            test_status=$?
+            gradle --no-daemon -p android :app:connectedDebugAndroidTest || gradle_status=$?
             mkdir -p android/test-diagnostics
             echo "===== ANDROID TEST XML RESULTS ====="
             find android/app/build/outputs/androidTest-results android/app/build/reports/androidTests -type f -name '*.xml' -print -exec cat {} + 2>/dev/null | tee android/test-diagnostics/test-results.txt || true
@@ -97,7 +91,10 @@ jobs:
             echo "===== COMPLETE DEVICE LOGCAT ====="
             adb logcat -d > android/test-diagnostics/emulator-logcat.txt 2>&1 || true
             grep -E -i 'AndroidJUnitRunner|Instrumentation|FATAL EXCEPTION|SSL|KeyStore|DeviceIdentity|AndroidTls|TestRunner|INSTRUMENTATION_STATUS' android/test-diagnostics/emulator-logcat.txt | tail -n 400 || true
-            exit "$test_status"
+            if [ "${gradle_status:-0}" -ne 0 ]; then
+              echo "Android instrumentation tests failed with exit code $gradle_status"
+              false
+            fi
 
       - name: Upload instrumentation diagnostics
         if: always()
