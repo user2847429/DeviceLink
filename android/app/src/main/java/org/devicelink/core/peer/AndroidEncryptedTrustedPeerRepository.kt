@@ -89,9 +89,11 @@ class AndroidEncryptedTrustedPeerRepository(
     }
 
     private fun encrypt(plaintext: ByteArray): ByteArray {
-        val iv = ByteArray(GCM_IV_BYTES).also(java.security.SecureRandom()::nextBytes)
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        // Android Keystore requires it to generate the IV when randomized encryption is enforced.
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val iv = requireNotNull(cipher.iv) { "Android Keystore did not provide a GCM IV." }
+        require(iv.size == GCM_IV_BYTES) { "Android Keystore returned an invalid GCM IV." }
         val header = envelopeHeader(iv.size, plaintext.size + GCM_TAG_BYTES)
         cipher.updateAAD(header)
         val ciphertext = cipher.doFinal(plaintext)
