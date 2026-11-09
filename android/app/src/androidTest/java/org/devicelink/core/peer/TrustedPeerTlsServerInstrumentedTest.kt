@@ -73,7 +73,7 @@ class TrustedPeerTlsServerInstrumentedTest {
                                 assertEquals("trusted-ping", String(received.payload, Charsets.UTF_8))
                                 channel.send(
                                     ControlMessage(
-                                        version = ControlMessage.CURRENT_VERSION,
+                                        version = ControlMessage.CURRENT_PROTOCOL_VERSION,
                                         messageId = "trusted-pong",
                                         senderPeerId = serverIdentity.peerId,
                                         kind = MessageKind.EVENT,
@@ -99,7 +99,7 @@ class TrustedPeerTlsServerInstrumentedTest {
                     ).use { channel ->
                         channel.send(
                             ControlMessage(
-                                version = ControlMessage.CURRENT_VERSION,
+                                version = ControlMessage.CURRENT_PROTOCOL_VERSION,
                                 messageId = "trusted-ping",
                                 senderPeerId = clientIdentity.peerId,
                                 kind = MessageKind.EVENT,
