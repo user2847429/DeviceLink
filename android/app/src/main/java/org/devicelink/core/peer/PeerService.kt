@@ -11,8 +11,10 @@ import android.os.IBinder
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * Owns local discovery and inbound authenticated control sessions.
@@ -27,9 +29,17 @@ class PeerService : Service() {
     private val activeChannels = ConcurrentHashMap<String, AuthenticatedControlChannel>()
     private val pendingSockets = ConcurrentHashMap.newKeySet<Socket>()
     @Volatile private var stoppingConnections = false
-    private val connectionExecutor = Executors.newCachedThreadPool(ThreadFactory { task ->
-        Thread(task, "DeviceLink-inbound-session").apply { isDaemon = true }
-    })
+    private val connectionExecutor = ThreadPoolExecutor(
+        2,
+        MAX_CONCURRENT_SESSION_WORKERS,
+        30L,
+        TimeUnit.SECONDS,
+        ArrayBlockingQueue(MAX_QUEUED_SESSIONS),
+        ThreadFactory { task ->
+            Thread(task, "DeviceLink-inbound-session").apply { isDaemon = true }
+        },
+        ThreadPoolExecutor.AbortPolicy()
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -171,23 +181,24 @@ class PeerService : Service() {
                         socket,
                         INBOUND_HANDSHAKE_TIMEOUT_MS
                     )
-                    channel = AuthenticatedControlChannel.establish(
+                    val establishedChannel = AuthenticatedControlChannel.establish(
                         session,
                         localPeerId,
                         INBOUND_HELLO_TIMEOUT_MS
                     )
-                    remotePeerId = channel.remotePeerId
-                    val previous = activeChannels.put(channel.remotePeerId, channel)
-                    if (previous != null && previous !== channel) previous.close()
+                    channel = establishedChannel
+                    remotePeerId = establishedChannel.remotePeerId
+                    val previous = activeChannels.put(establishedChannel.remotePeerId, establishedChannel)
+                    if (previous != null && previous !== establishedChannel) previous.close()
 
                     sendPeerEvent(ACTION_SECURE_SESSION_ESTABLISHED) {
-                        putExtra(EXTRA_PEER_ID, channel.remotePeerId)
+                        putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
                     }
 
                     while (!stoppingConnections) {
-                        val message = channel.receive() ?: break
+                        val message = establishedChannel.receive() ?: break
                         sendPeerEvent(ACTION_CONTROL_MESSAGE_RECEIVED) {
-                            putExtra(EXTRA_PEER_ID, channel.remotePeerId)
+                            putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
                             putExtra(EXTRA_MESSAGE_KIND, message.kind.name)
                             putExtra(EXTRA_PAYLOAD, message.payload)
                         }
@@ -299,5 +310,7 @@ class PeerService : Service() {
         private const val TCP_PROBE_TIMEOUT_MS = 4000
         private const val INBOUND_HANDSHAKE_TIMEOUT_MS = 10_000
         private const val INBOUND_HELLO_TIMEOUT_MS = 10_000
+        private const val MAX_CONCURRENT_SESSION_WORKERS = 4
+        private const val MAX_QUEUED_SESSIONS = 16
     }
 }
