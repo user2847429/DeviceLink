@@ -1,11 +1,6 @@
 package org.devicelink.core.protocol
 
-/**
- * Initial in-memory control message model.
- *
- * The wire format is deliberately not implemented until the shared protocol
- * specification and Android/Linux interoperability fixtures are agreed.
- */
+/** Versioned in-memory model for DeviceLink control-plane messages. */
 enum class MessageKind {
     HELLO,
     PAIRING,
