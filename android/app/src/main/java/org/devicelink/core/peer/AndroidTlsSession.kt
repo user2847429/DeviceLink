@@ -63,11 +63,31 @@ class AndroidTlsSession private constructor(
             )
         }
 
+        /**
+         * Accepts an inbound peer only when its certificate key is present in the
+         * trusted-peer registry consulted by this server factory. The remote peer ID
+         * is derived from the verified certificate after mutual TLS completes.
+         */
+        fun acceptTrusted(
+            tlsFactory: AndroidTlsSocketFactory,
+            acceptedSocket: java.net.Socket,
+            handshakeTimeoutMillis: Int = DEFAULT_HANDSHAKE_TIMEOUT_MILLIS,
+        ): AndroidTlsSession {
+            require(tlsFactory.isTrustedPeerServerFactory) {
+                "A trusted-peer server TLS factory is required."
+            }
+            require(handshakeTimeoutMillis > 0)
+            val socket = tlsFactory.wrapAcceptedTrustedSocket(acceptedSocket)
+            return completeHandshake(
+                socket, tlsFactory, null, null, handshakeTimeoutMillis
+            )
+        }
+
         private fun completeHandshake(
             socket: SSLSocket,
             tlsFactory: AndroidTlsSocketFactory,
-            expectedPeerId: String,
-            expectedPeerPublicKey: ByteArray,
+            expectedPeerId: String?,
+            expectedPeerPublicKey: ByteArray?,
             timeoutMillis: Int,
         ): AndroidTlsSession {
             try {
@@ -87,14 +107,19 @@ class AndroidTlsSession private constructor(
                 check(DeviceIdentityStore.isSupportedPublicKey(actualKey)) {
                     "Peer certificate does not contain a supported DeviceLink identity key."
                 }
-                check(DeviceIdentityStore.peerIdFor(actualKey) == expectedPeerId) {
-                    "Peer certificate does not match the expected DeviceLink peer ID."
+                val actualPeerId = DeviceIdentityStore.peerIdFor(actualKey)
+                if (expectedPeerId != null) {
+                    check(actualPeerId == expectedPeerId) {
+                        "Peer certificate does not match the expected DeviceLink peer ID."
+                    }
                 }
-                check(MessageDigest.isEqual(expectedPeerPublicKey, actualKey)) {
-                    "Peer certificate public key does not match the expected pinned key."
+                if (expectedPeerPublicKey != null) {
+                    check(MessageDigest.isEqual(expectedPeerPublicKey, actualKey)) {
+                        "Peer certificate public key does not match the expected pinned key."
+                    }
                 }
                 socket.soTimeout = 0
-                return AndroidTlsSession(socket, expectedPeerId, tlsFactory)
+                return AndroidTlsSession(socket, actualPeerId, tlsFactory)
             } catch (error: Exception) {
                 try {
                     socket.close()
