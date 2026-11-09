@@ -22,25 +22,46 @@ import java.security.cert.X509Certificate
  * socket. First-time pairing pins the public key from a validated QR offer;
  * an already trusted connection pins the key from the trusted-peer record.
  */
-class AndroidTlsSocketFactory(
-    private val expectedPeerId: String,
-    expectedPeerPublicKeyEncoded: ByteArray,
-    private val identityStore: DeviceIdentityStore = DeviceIdentityStore(),
+class AndroidTlsSocketFactory private constructor(
+    private val expectedPeerId: String?,
+    expectedPeerPublicKeyEncoded: ByteArray?,
+    private val trustedPeerKeys: (() -> Collection<ByteArray>)?,
+    private val identityStore: DeviceIdentityStore,
 ) {
-    private val expectedPublicKey = expectedPeerPublicKeyEncoded.clone()
+    private val expectedPublicKey = expectedPeerPublicKeyEncoded?.clone()
+
+    constructor(
+        expectedPeerId: String,
+        expectedPeerPublicKeyEncoded: ByteArray,
+        identityStore: DeviceIdentityStore = DeviceIdentityStore(),
+    ) : this(expectedPeerId, expectedPeerPublicKeyEncoded, null, identityStore)
 
     init {
-        require(expectedPeerId.isNotBlank()) { "Expected peer ID must not be blank." }
-        require(DeviceIdentityStore.isSupportedPublicKey(expectedPublicKey)) {
-            "Expected peer key must be a supported P-256 public key."
+        if (trustedPeerKeys == null) {
+            require(!expectedPeerId.isNullOrBlank()) { "Expected peer ID must not be blank." }
+            require(expectedPublicKey != null && DeviceIdentityStore.isSupportedPublicKey(expectedPublicKey)) {
+                "Expected peer key must be a supported P-256 public key."
+            }
+            require(DeviceIdentityStore.peerIdFor(expectedPublicKey) == expectedPeerId) {
+                "Expected peer ID does not match its public key."
+            }
+        } else {
+            require(expectedPeerId == null && expectedPublicKey == null) {
+                "Trusted-peer server mode cannot also pin a single peer."
+            }
         }
-        require(DeviceIdentityStore.peerIdFor(expectedPublicKey) == expectedPeerId) {
-            "Expected peer ID does not match its public key."
-        }
+    }
+
+    internal val isTrustedPeerServerFactory: Boolean get() = trustedPeerKeys != null
+
+    internal fun wrapAcceptedTrustedSocket(accepted: Socket): SSLSocket {
+        check(isTrustedPeerServerFactory) { "This TLS factory is not configured for trusted-peer server mode." }
+        return wrapAcceptedSocket(accepted)
     }
 
     /** Creates a client-mode socket. The caller must invoke startHandshake(). */
     fun createClientSocket(host: String, port: Int, connectTimeoutMillis: Int = DEFAULT_CONNECT_TIMEOUT_MILLIS): SSLSocket {
+        check(expectedPublicKey != null) { "Trusted-peer server factories cannot create outbound pinned sockets." }
         require(host.isNotBlank())
         require(port in 1..65535)
         require(connectTimeoutMillis > 0)
@@ -115,7 +136,7 @@ class AndroidTlsSocketFactory(
                 PinnedLocalIdentityKeyManager(extended, identityStore.keyAlias, identity.publicKeyEncoded)
             }.toTypedArray<KeyManager>()
         }
-        val trustManager = PinnedPeerTrustManager(expectedPublicKey)
+        val trustManager = PinnedPeerTrustManager(expectedPublicKey, trustedPeerKeys)
         return SSLContext.getInstance("TLS").apply {
             init(keyManagers, arrayOf(trustManager), null)
         }
@@ -174,9 +195,10 @@ class AndroidTlsSocketFactory(
     }
 
     private class PinnedPeerTrustManager(
-        expectedPublicKeyEncoded: ByteArray
+        expectedPublicKeyEncoded: ByteArray?,
+        private val trustedPeerKeys: (() -> Collection<ByteArray>)?,
     ) : X509TrustManager {
-        private val pinnedKey = expectedPublicKeyEncoded.clone()
+        private val pinnedKey = expectedPublicKeyEncoded?.clone()
 
         override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) =
             verifyPinnedCertificate(chain)
@@ -195,15 +217,43 @@ class AndroidTlsSocketFactory(
                 throw java.security.cert.CertificateException("Peer certificate is not currently valid.", error)
             }
             val publicKey = leaf.publicKey.encoded
-            if (!DeviceIdentityStore.isSupportedPublicKey(publicKey) ||
-                !MessageDigest.isEqual(pinnedKey, publicKey)
-            ) {
-                throw java.security.cert.CertificateException("Peer certificate does not match the pinned DeviceLink identity.")
+            if (!DeviceIdentityStore.isSupportedPublicKey(publicKey)) {
+                throw java.security.cert.CertificateException("Peer certificate does not contain a supported P-256 identity.")
+            }
+            val pinned = pinnedKey
+            if (pinned != null) {
+                if (!MessageDigest.isEqual(pinned, publicKey)) {
+                    throw java.security.cert.CertificateException("Peer certificate does not match the pinned DeviceLink identity.")
+                }
+            } else {
+                val trusted = try {
+                    trustedPeerKeys?.invoke().orEmpty().any { MessageDigest.isEqual(it, publicKey) }
+                } catch (error: Exception) {
+                    throw java.security.cert.CertificateException("Trusted-peer registry could not be read.", error)
+                }
+                if (!trusted) {
+                    throw java.security.cert.CertificateException("Peer identity is not present in the trusted-peer registry.")
+                }
             }
         }
     }
 
     companion object {
+        /**
+         * Creates a server-only TLS factory that accepts client certificates only
+         * when their exact public key is currently present in the trusted registry.
+         * Registry read failures and unknown identities fail closed.
+         */
+        fun forTrustedPeers(
+            registry: TrustedPeerRegistry,
+            identityStore: DeviceIdentityStore = DeviceIdentityStore(),
+        ): AndroidTlsSocketFactory = AndroidTlsSocketFactory(
+            expectedPeerId = null,
+            expectedPeerPublicKeyEncoded = null,
+            trustedPeerKeys = { registry.all().map { it.publicKeyEncoded } },
+            identityStore = identityStore,
+        )
+
         private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val TLS_1_3 = "TLSv1.3"
