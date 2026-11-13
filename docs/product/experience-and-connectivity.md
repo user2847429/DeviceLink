@@ -76,7 +76,9 @@ The media use case is remote control of playback on the other device (for exampl
 
 ## Languages and localization
 
-- Ship complete Italian, Russian, and English translations from the first public-quality UI release.
+- Ship complete English, Italian, and Russian translations from the first public-quality UI release; English is the fallback language.
+- Later language additions should stay focused on European languages, initially Spanish, French, German, and Portuguese (including Brazilian Portuguese) when translation quality is available.
+- RTL languages (including Arabic and Hebrew), and non-European language packs such as Chinese, Japanese, and Hindi, are explicitly out of scope for the initial product phase. Do not add RTL-specific layout complexity now; keep the UI structured so this can be reconsidered deliberately later.
 - Keep all user-facing strings in Android resources; no UI text hard-coded in Kotlin.
 - Support Android per-app language preferences and an in-app language selector if appropriate. Changing language must not change protocol identifiers, stored peer IDs, or data formats.
 - Prepare the resource structure for additional widely used languages, prioritizing Spanish, French, German, Portuguese (including Brazilian Portuguese), Chinese (Simplified), Japanese, Arabic, and Hindi based on translation quality and demand.
