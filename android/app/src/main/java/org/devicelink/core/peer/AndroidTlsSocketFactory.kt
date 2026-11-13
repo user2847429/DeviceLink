@@ -54,6 +54,34 @@ class AndroidTlsSocketFactory private constructor(
 
     internal val isTrustedPeerServerFactory: Boolean get() = trustedPeerKeys != null
 
+    /**
+     * Performs an explicit post-handshake allowlist check for inbound sessions.
+     * This is intentionally repeated after JSSE completes mutual TLS so the
+     * application trust decision cannot depend solely on provider callbacks.
+     */
+    internal fun verifyAcceptedTrustedPeer(publicKeyEncoded: ByteArray) {
+        check(isTrustedPeerServerFactory) { "Trusted-peer server mode is required." }
+        if (!DeviceIdentityStore.isSupportedPublicKey(publicKeyEncoded)) {
+            throw javax.net.ssl.SSLPeerUnverifiedException(
+                "Peer certificate does not contain a supported P-256 identity."
+            )
+        }
+        val trusted = try {
+            trustedPeerKeys?.invoke().orEmpty().any {
+                MessageDigest.isEqual(it, publicKeyEncoded)
+            }
+        } catch (error: Exception) {
+            throw javax.net.ssl.SSLPeerUnverifiedException(
+                "Trusted-peer registry could not be read."
+            ).apply { initCause(error) }
+        }
+        if (!trusted) {
+            throw javax.net.ssl.SSLPeerUnverifiedException(
+                "Peer identity is not present in the trusted-peer registry."
+            )
+        }
+    }
+
     internal fun wrapAcceptedTrustedSocket(accepted: Socket): SSLSocket {
         check(isTrustedPeerServerFactory) { "This TLS factory is not configured for trusted-peer server mode." }
         return wrapAcceptedSocket(accepted)
