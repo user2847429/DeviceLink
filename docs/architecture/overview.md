@@ -51,3 +51,9 @@ Android is the only active application target. Keep capability IDs, operation ID
 | `device.system` | get-limited-info, request-approved-action |
 
 These names are planning examples, not promises that every operation is available on every Android device. Each module will document platform limits, required grants, and whether the operation is read-only or changes device state.
+
+## Transport independence and product experience
+
+The logical peer identity, trusted-peer registry, authenticated session, protocol framing, and capability authorization are independent of the underlying link. The Android transport roadmap includes infrastructure Wi-Fi/hotspot, Wi-Fi Direct, Bluetooth Classic RFCOMM, and BLE/GATT for constrained control/discovery. A route change must never weaken identity verification or authorization. Simultaneous infrastructure Wi-Fi and Wi-Fi Direct is hardware/firmware-dependent and must be detected at runtime; the app must not promise concurrency or silently disconnect a user's existing network.
+
+The user experience should use an adaptive Material 3 design, with pinned/reorderable favorite actions, per-device layouts, and explicit connection/pairing states. Italian, Russian, and English are launch localization requirements; further languages must be supported through Android resource localization rather than hard-coded UI strings. See [product and connectivity requirements](../product/experience-and-connectivity.md).
