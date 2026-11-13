@@ -1,6 +1,6 @@
 # Device identity and pairing
 
-**Status:** implementation in progress. Local Android identity storage, pairing-offer validation, confirmation-code derivation primitives, two-sided confirmation, and a trusted-peer registry policy exist. An Android encrypted trusted-peer repository now exists, but it is not yet wired into the app's pairing flow. QR UI, authenticated transport, and end-to-end pairing are not implemented. This is not a security audit.
+**Status:** implementation in progress. Android Keystore identity, TLS 1.3 mutual-authentication transport, identity-bound HELLO, inbound trusted-peer verification, encrypted trusted-peer storage, pairing-offer validation, exporter-based comparison-code primitives, and two-sided confirmation state exist. QR serialization/UI, temporary first-pairing transport, outbound UI connection, and end-to-end pairing are not implemented. This is not a security audit.
 
 ## Goals
 
