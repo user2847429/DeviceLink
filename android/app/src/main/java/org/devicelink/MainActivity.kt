@@ -167,7 +167,7 @@ class MainActivity : Activity() {
             items.forEach { item ->
                 val state = when (item.supported) {
                     true -> "Supportato"
-                    false -> "Non rilevato"
+                    false -> "Non dichiarato supportato"
                     null -> "Non determinabile"
                 }
                 addText(content, "${item.name}: $state", 16f)
@@ -177,7 +177,7 @@ class MainActivity : Activity() {
 
         addText(
             content,
-            "Nota: le bande Wi-Fi non identificano da sole lo standard 802.11 esatto. Wi-Fi Direct, Bluetooth e BLE saranno mostrati come capacità del dispositivo; lo stato radio e i profili disponibili richiederanno verifiche aggiuntive e i relativi permessi."
+            "Nota: gli standard 802.11 e le bande sono riportati solo quando Android espone un dato affidabile. La concorrenza STA + rete locale secondaria non garantisce STA + Wi-Fi Direct. Lo stato delle radio Bluetooth/Wi-Fi e i profili Bluetooth richiederanno verifiche runtime aggiuntive e, quando necessario, i relativi permessi."
         )
         addButton(root, "Aggiorna") { showDeviceCapabilities() }
         addButton(root, "Indietro") { showSettings() }
