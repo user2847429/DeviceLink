@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.devicelink.core.protocol.ControlMessage
 import org.devicelink.core.protocol.MessageKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.InetAddress
@@ -30,6 +31,8 @@ class TrustedPeerTlsServerInstrumentedTest {
         }
         val registry = TrustedPeerRegistry(repository)
         val executor = Executors.newSingleThreadExecutor()
+        val sessionNonce = ByteArray(PairingOffer.NONCE_BYTES) { (it * 7 + 3).toByte() }
+        val exporterContext = "DeviceLink exporter integration test v1".toByteArray(Charsets.US_ASCII) + sessionNonce
 
         try {
             val clientIdentity = clientIdentityStore.getOrCreateIdentity()
@@ -80,7 +83,12 @@ class TrustedPeerTlsServerInstrumentedTest {
                                         payload = "trusted-pong".toByteArray(Charsets.UTF_8)
                                     )
                                 )
-                                session.peerId
+                                PairingConfirmationCode.derive(
+                                    session.exportPairingMaterial(exporterContext),
+                                    serverIdentity.peerId,
+                                    session.peerId,
+                                    sessionNonce
+                                )
                             }
                         }
                     }
@@ -93,6 +101,20 @@ class TrustedPeerTlsServerInstrumentedTest {
                     InetAddress.getLoopbackAddress().hostAddress ?: "127.0.0.1",
                     serverSocket.localPort
                 ).use { session ->
+                    val clientPairingCode = PairingConfirmationCode.derive(
+                        session.exportPairingMaterial(exporterContext),
+                        clientIdentity.peerId,
+                        session.peerId,
+                        sessionNonce
+                    )
+                    val changedContext = exporterContext.clone().also { it[0] = (it[0].toInt() xor 1).toByte() }
+                    val changedContextCode = PairingConfirmationCode.derive(
+                        session.exportPairingMaterial(changedContext),
+                        clientIdentity.peerId,
+                        session.peerId,
+                        sessionNonce
+                    )
+                    assertNotEquals("Exporter context must affect the derived pairing code.", clientPairingCode, changedContextCode)
                     AuthenticatedControlChannel.establish(
                         session,
                         clientIdentity.peerId
@@ -112,7 +134,7 @@ class TrustedPeerTlsServerInstrumentedTest {
                     }
                 }
 
-                assertEquals(clientIdentity.peerId, serverFuture.get(20, TimeUnit.SECONDS))
+                assertEquals(clientPairingCode, serverFuture.get(20, TimeUnit.SECONDS))
             } finally {
                 serverSocket.close()
             }
