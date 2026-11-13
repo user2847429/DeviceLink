@@ -174,12 +174,25 @@ class TrustedPeerTlsServerInstrumentedTest {
                         serverIdentity.publicKeyEncoded,
                         InetAddress.getLoopbackAddress().hostAddress ?: "127.0.0.1",
                         serverSocket.localPort
-                    ).use { }
+                    ).use { session ->
+                        AuthenticatedControlChannel.establish(
+                            session,
+                            clientIdentity.peerId,
+                            helloTimeoutMillis = 5_000
+                        ).use { }
+                    }
                 }.isFailure
 
-                assertEquals("Untrusted client must fail its TLS handshake.", true, clientRejected)
-                assertEquals("Server must reject a client absent from its trusted registry.", true,
-                    serverFuture.get(20, TimeUnit.SECONDS))
+                assertEquals(
+                    "An untrusted client must not establish an authenticated control channel.",
+                    true,
+                    clientRejected
+                )
+                assertEquals(
+                    "Server must reject a client absent from its trusted registry.",
+                    true,
+                    serverFuture.get(20, TimeUnit.SECONDS)
+                )
             } finally {
                 serverSocket.close()
             }
