@@ -8,6 +8,12 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import org.devicelink.core.device.AndroidDeviceCapabilityScanner
+import org.devicelink.core.device.DeviceCapabilitySnapshot
+import org.devicelink.core.device.DeviceCapabilitySnapshotCodec
+import org.devicelink.core.protocol.ControlMessage
+import org.devicelink.core.protocol.MessageKind
+import java.util.UUID
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
@@ -195,12 +201,37 @@ class PeerService : Service() {
                         putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
                     }
 
+                    // Capability data is sent only after mutual TLS trust and identity-bound HELLO.
+                    val localCapabilities = DeviceCapabilitySnapshot(
+                        generatedAtEpochMillis = System.currentTimeMillis(),
+                        capabilities = AndroidDeviceCapabilityScanner.scan(applicationContext)
+                    )
+                    establishedChannel.send(
+                        ControlMessage(
+                            version = ControlMessage.CURRENT_PROTOCOL_VERSION,
+                            messageId = UUID.randomUUID().toString(),
+                            senderPeerId = establishedChannel.localPeerId,
+                            kind = MessageKind.CAPABILITIES,
+                            payload = DeviceCapabilitySnapshotCodec.encode(localCapabilities)
+                        )
+                    )
+
                     while (!stoppingConnections) {
                         val message = establishedChannel.receive() ?: break
-                        sendPeerEvent(ACTION_CONTROL_MESSAGE_RECEIVED) {
-                            putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
-                            putExtra(EXTRA_MESSAGE_KIND, message.kind.name)
-                            putExtra(EXTRA_PAYLOAD, message.payload)
+                        if (message.kind == MessageKind.CAPABILITIES) {
+                            // Decode before forwarding: malformed or oversized inventories fail closed.
+                            val snapshot = DeviceCapabilitySnapshotCodec.decode(message.payload)
+                            sendPeerEvent(ACTION_REMOTE_CAPABILITIES_RECEIVED) {
+                                putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
+                                putExtra(EXTRA_CAPABILITY_TIMESTAMP, snapshot.generatedAtEpochMillis)
+                                putExtra(EXTRA_PAYLOAD, message.payload)
+                            }
+                        } else {
+                            sendPeerEvent(ACTION_CONTROL_MESSAGE_RECEIVED) {
+                                putExtra(EXTRA_PEER_ID, establishedChannel.remotePeerId)
+                                putExtra(EXTRA_MESSAGE_KIND, message.kind.name)
+                                putExtra(EXTRA_PAYLOAD, message.payload)
+                            }
                         }
                     }
                 } catch (_: Exception) {
@@ -296,6 +327,7 @@ class PeerService : Service() {
         const val ACTION_SECURE_SESSION_CLOSED = "org.devicelink.action.SECURE_SESSION_CLOSED"
         const val ACTION_SECURE_SESSION_ERROR = "org.devicelink.action.SECURE_SESSION_ERROR"
         const val ACTION_CONTROL_MESSAGE_RECEIVED = "org.devicelink.action.CONTROL_MESSAGE_RECEIVED"
+        const val ACTION_REMOTE_CAPABILITIES_RECEIVED = "org.devicelink.action.REMOTE_CAPABILITIES_RECEIVED"
 
         const val EXTRA_SERVICE_NAME = "service_name"
         const val EXTRA_HOST = "host"
@@ -304,6 +336,7 @@ class PeerService : Service() {
         const val EXTRA_PEER_ID = "peer_id"
         const val EXTRA_MESSAGE_KIND = "message_kind"
         const val EXTRA_PAYLOAD = "payload"
+        const val EXTRA_CAPABILITY_TIMESTAMP = "capability_timestamp"
 
         private const val CHANNEL_ID = "devicelink_peer"
         private const val NOTIFICATION_ID = 1001
