@@ -1,37 +1,46 @@
 # TLS transport implementation notes
 
-**Status:** Android TLS 1.3 socket/session adapter and identity-bound control HELLO channel implemented. Mutual TLS and exporter exchange pass the API 35 emulator instrumentation test. Physical-device verification and integration into the foreground peer service and pairing flow are still outstanding.
+**Status:** Android TLS 1.3 socket/session adapter, identity-bound HELLO channel, trusted-peer server mode, and inbound foreground-service integration are implemented. Mutual TLS, exporter exchange, and trusted/untrusted inbound-session behavior pass API 35 emulator instrumentation. QR pairing, outbound UI connection, and physical-device verification remain outstanding.
 
-## Candidate Android TLS provider
+## Android TLS provider
 
-The first Android implementation uses the platform JSSE provider through `SSLSocket`, restricted to TLS 1.3. Android exposes `android.net.ssl.SSLSockets.exportKeyingMaterial` from API 31 and provides `isSupportedSocket` to reject sockets that are not backed by the platform TLS provider. DeviceLink's minimum API level is 35, so the public API is available on supported Android versions.
+The first Android implementation uses the platform JSSE provider through `SSLSocket`, restricted to TLS 1.3. Android exposes `android.net.ssl.SSLSockets.exportKeyingMaterial` from API 31; DeviceLink's minimum API level is 35.
 
-The exporter call happens only after the TLS 1.3 handshake has completed. Pairing uses the fixed ASCII label `EXPORTER-DeviceLink-Pairing-v1` and a deterministic, non-empty context bound to the pairing ceremony. Both endpoints must use byte-identical label and context. The exporter output is short-lived session material: do not persist it, log it, or reuse it across sessions. Never silently substitute a locally derived value if export fails or returns null.
+The exporter is available only after the TLS 1.3 handshake. Pairing uses the fixed ASCII label `EXPORTER-DeviceLink-Pairing-v1` and a deterministic, non-empty context bound to the pairing ceremony. Both endpoints must use byte-identical label and context. Exported material is short-lived: never persist or log it, and never substitute a locally derived value if export fails.
 
 References:
-- Android `SSLSockets` API: https://developer.android.com/reference/android/net/ssl/SSLSockets
+- Android SSLSockets API: https://developer.android.com/reference/android/net/ssl/SSLSockets
 - TLS 1.3, RFC 8446 section 7.5: https://www.rfc-editor.org/rfc/rfc8446
-- BoringSSL TLS 1.3 exporter implementation: https://chromium.googlesource.com/external/gob/boringssl/boringssl/+/HEAD/ssl/t1_enc.cc
 
 ## Binding TLS to DeviceLink identities
 
-The installation identity is an EC P-256 key generated in Android Keystore. The private key is non-exportable. The Android TLS adapter loads the matching AndroidKeyStore entry through a JSSE `KeyManagerFactory` for client and server authentication. Its key manager is pinned to the same alias and public key used by `DeviceIdentityStore`. The session wrapper completes the handshake before returning, checks the peer certificate against the expected peer ID and pinned key, applies bounded connect/handshake timeouts, and removes the handshake read timeout after success.
+The installation identity is an EC P-256 key generated in Android Keystore; the private key is non-exportable. The TLS key manager is pinned to the same alias and public key used by `DeviceIdentityStore`. Both endpoints request and present client certificates.
 
-Both endpoints request and present client certificates (mutual TLS). For already paired peers, the presented certificate public key must match the stored trusted identity exactly; changed keys fail closed. First-time pairing remains a separate ceremony: an unknown peer must be compared out of band using the actual TLS exporter-derived short authentication string and confirmed on both devices. A valid TLS handshake alone must not create a trusted-peer record.
+For outbound connections, the remote certificate must match the exact peer ID and public key supplied by the trusted-peer record. The inbound service uses a server-only TLS factory that checks the presented client certificate against the encrypted trusted-peer registry. Registry read errors, unknown keys, invalid certificates, and changed keys fail closed. The remote peer ID is derived from the verified certificate after mutual TLS.
+
+A successful TLS handshake does not itself create trust. First-time pairing remains a separate QR-based ceremony using the actual TLS exporter-derived short authentication string and explicit confirmation on both devices.
 
 ## Authenticated control channel
 
-`AuthenticatedControlChannel.establish` runs only after `AndroidTlsSession` has completed pinned mutual TLS. It performs a symmetric HELLO exchange: both peers send first, then validate that the received message is an empty HELLO whose sender peer ID equals the identity authenticated by TLS. A malformed frame, wrong message kind, unexpected payload, mismatched peer ID, EOF, or timeout fails closed and closes the session. Subsequent control messages are also checked against the authenticated remote peer ID.
+After TLS authentication, `AuthenticatedControlChannel.establish` performs a symmetric HELLO exchange. Both peers send an empty HELLO before reading; the sender peer ID must match the identity authenticated by the TLS certificate. Malformed frames, wrong message kinds, unexpected payloads, mismatched IDs, EOF, or timeout close the session. Subsequent messages are checked against the authenticated remote peer ID.
 
-The channel is a transport boundary, not an authorization layer. It does not persist trust, pair unknown peers, grant Android permissions, or authorize capability operations. It is not yet connected to `PeerService` or the UI.
+The channel is a transport boundary, not an authorization layer. It does not grant Android permissions, pair unknown peers, or authorize capability operations.
 
-## Verification status and remaining work
+## Foreground service integration
 
-- API 35 emulator instrumentation test: TLS 1.3 mutual authentication and exporter equality pass.
-- Add negative instrumentation cases for missing/invalid client certificates and changed identity pins.
-- Verify the same AndroidKeyStore certificate selection, mutual TLS, and exporter behavior on the Nothing Phone 1 and Xiaomi Pad 6.
-- Integrate the channel with the peer listener and trusted-peer repository.
-- Complete QR-based first pairing, exporter-derived confirmation, two-sided confirmation, and durable trust.
-- Test unknown identities, trusted-key mismatch, expired/replayed pairing offers, and one-sided confirmation.
+`PeerService` now hands accepted discovery-listener sockets to bounded inbound session workers. It loads the encrypted trusted-peer repository before enabling the secure listener, performs mutual TLS and HELLO, tracks one active channel per remote peer ID, and emits app-scoped lifecycle/message broadcasts. Work is bounded to four concurrent session workers and sixteen queued sockets. Stopping the service closes active channels and pending sockets.
 
-Until service and pairing integration plus physical-device verification are complete, discovery and TCP reachability must not be described as an authenticated DeviceLink session.
+This is inbound-only plumbing. The UI does not yet initiate outbound sessions, and the service does not dispatch received commands to capabilities. No pairing flow currently populates the trust registry in the UI, so an installation with no paired peers correctly rejects every inbound client.
+
+## Verification and remaining work
+
+- API 35 emulator: TLS 1.3 mutual authentication and exporter equality pass.
+- API 35 emulator: trusted client completes HELLO and exchanges a control event with the service-level TLS primitives.
+- API 35 emulator: client identity absent from the trusted registry is rejected during TLS.
+- Still required: verify AndroidKeyStore certificate selection, mutual TLS, exporter behavior, and service lifecycle on Nothing Phone 1 and Xiaomi Pad 6.
+- Implement QR first pairing, exporter-derived confirmation, two-sided confirmation, and durable trust.
+- Implement outbound connection from discovered peer to a previously paired identity.
+- Add typed message schemas and route commands through capability authorization before any operation executes.
+- Test expired/replayed offers, one-sided confirmation, trust revocation, and changed identity keys.
+
+Discovery and TCP reachability are not authenticated sessions. This document describes implementation progress, not a security audit.
