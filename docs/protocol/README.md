@@ -1,6 +1,6 @@
 # DeviceLink protocol
 
-**Status: draft 0.5 — bounded binary control codec, length-prefixed framing, and an identity-bound HELLO exchange are implemented. TLS 1.3 has passed the API 35 emulator instrumentation test. The channel is not yet wired into the foreground peer service or pairing UI.**
+**Status: draft 0.6 — bounded binary control codec, length-prefixed framing, identity-bound HELLO, TLS 1.3 mutual authentication, and trusted-peer inbound transport are implemented and tested on an API 35 emulator. The protocol is not yet a stable public contract.**
 
 The protocol is language- and platform-neutral. Android is the first implementation target; future clients on other operating systems may implement this contract independently.
 
@@ -10,13 +10,15 @@ All integer fields use network byte order (big-endian). A codec frame contains a
 
 ## Byte-stream framing
 
-TCP does not preserve application message boundaries. ControlFrameStream prefixes each codec frame with a four-byte unsigned big-endian length. The accepted length range is 18–65,806 bytes and must be checked before allocating the body. EOF before any prefix byte is a clean end of stream; EOF inside the prefix or body is a truncated frame and must fail the session. Multiple frames may be concatenated. This helper provides framing only, not authentication or encryption.
+TCP does not preserve application message boundaries. Control frames are prefixed with a four-byte unsigned big-endian length. Accepted lengths are 18–65,806 bytes and are checked before allocating the body. EOF before any prefix byte is a clean end of stream; EOF inside the prefix or body is a truncated frame. Multiple frames may be concatenated. Framing provides neither authentication nor encryption.
 
-## Initial HELLO exchange
+## TLS and HELLO
 
-After a pinned TLS 1.3 handshake, both endpoints send one empty HELLO message and then read the other endpoint's HELLO. The senderPeerId in the message must exactly match the peer ID authenticated by the TLS certificate pin. A different sender identity, non-HELLO first message, non-empty HELLO payload, malformed frame, or timeout fails the channel and closes the TLS session. Both endpoints send before reading, so the exchange is symmetric and does not depend on which endpoint opened TCP.
+The Android transport uses TLS 1.3 mutual authentication. Outbound sockets pin the expected remote peer public key. The inbound server accepts a client certificate only if its exact P-256 public key is currently present in the encrypted trusted-peer registry. Unknown peers and registry read failures are rejected; there is no plaintext fallback.
 
-The HELLO exchange confirms that both sides are speaking the expected DeviceLink control protocol over the already authenticated TLS session. It does not pair an unknown peer, persist trust, authorize commands, or grant Android permissions. Capability authorization remains a separate mandatory check.
+After TLS, both endpoints send an empty HELLO before reading. The received senderPeerId must exactly match the peer ID derived from the authenticated certificate. A different identity, non-HELLO first message, non-empty HELLO payload, malformed frame, or timeout closes the channel.
+
+The foreground peer service owns the inbound listener and hands accepted sockets to bounded session workers. It tracks authenticated channels and emits app-scoped events. The current integration is inbound-only; outbound connection UI and first-time pairing are not implemented yet. A clean installation with no trusted-peer records rejects all inbound clients by design.
 
 ## Message kinds
 
@@ -24,8 +26,6 @@ The HELLO exchange confirms that both sides are speaking the expected DeviceLink
 
 ## Security boundary
 
-The codec and stream framing are serialization utilities only. The HELLO exchange is safe to use only after mutual TLS has authenticated and pinned the remote DeviceLink identity. Do not expose the codec or HELLO over an unauthenticated network transport. QR confirmation, persistent trusted-peer integration, typed payload schemas, and capability authorization remain prerequisites before commands or other privileged application actions are exchanged. No plaintext fallback or custom cryptography is permitted.
+The codec and framing are serialization utilities only. HELLO is safe only after mutual TLS has authenticated and pinned the remote identity. The TLS exporter is reserved for the first-pairing confirmation ceremony; exporter bytes must not be persisted or logged. TLS authentication does not authorize commands, grant Android permissions, or establish first-time trust.
 
-## Implementation boundaries
-
-Android-specific APIs (Keystore, permissions, Shizuku, foreground services, discovery) stay behind Android adapters. Future platform clients must be able to implement the protocol without Android dependencies. Bulk file data belongs to a separate bounded and resumable data plane, not control messages. This draft is not yet a stable public protocol.
+QR pairing, typed payload schemas, and capability authorization before dispatch remain prerequisites before remote actions are implemented. No plaintext fallback or custom cryptography is permitted. Bulk file data belongs to a separate bounded and resumable data plane, not control messages.
