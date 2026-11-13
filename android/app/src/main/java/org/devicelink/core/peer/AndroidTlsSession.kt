@@ -108,6 +108,9 @@ class AndroidTlsSession private constructor(
                     "Peer certificate does not contain a supported DeviceLink identity key."
                 }
                 val actualPeerId = DeviceIdentityStore.peerIdFor(actualKey)
+                if (tlsFactory.isTrustedPeerServerFactory) {
+                    tlsFactory.verifyAcceptedTrustedPeer(actualKey)
+                }
                 if (expectedPeerId != null) {
                     check(actualPeerId == expectedPeerId) {
                         "Peer certificate does not match the expected DeviceLink peer ID."
