@@ -62,6 +62,16 @@ The media use case is remote control of playback on the other device (for exampl
 - No arbitrary shell, no plaintext fallback, no custom cryptography, and no silent security downgrade.
 - Threat-model replay, relay, downgrade, denial-of-service, stale QR invitations, key replacement, revocation, and compromised paired devices. Pairing and transport changes require negative tests, not only happy-path tests.
 
+## Device capability inventory
+
+- Provide a device information screen for the local Android device and a capability summary for each authenticated remote peer.
+- Report hardware/framework capabilities separately from current runtime state. "Wi-Fi Direct supported" is not the same as "Wi-Fi Direct currently available"; "Bluetooth present" is not the same as "Bluetooth enabled".
+- Local detection must use Android framework feature declarations and documented APIs. Unknown or permission-blocked values must be labelled unknown, never silently treated as unsupported.
+- Include Wi-Fi feature/band information, Wi-Fi Direct, Bluetooth Classic, BLE, and other useful hardware features such as NFC and USB host where Android exposes them. Exact 802.11 generation, Bluetooth version, profiles, codecs, and simultaneous radio operation should only be shown when a reliable platform API exposes them.
+- Remote capability data is informational until received over an authenticated, trusted DeviceLink session. Validate its schema, version, sizes, and freshness. Do not accept capability claims from discovery packets, unauthenticated HELLO messages, or an IP/Bluetooth address.
+- The initial binary snapshot schema is versioned and bounded (maximum 64 entries and 16 KiB); each feature has an explicit supported, unsupported, or unknown state. The Android service sends the local snapshot only after mutual TLS trust and identity-bound HELLO, and validates a received snapshot before forwarding it to the UI.
+- Compare local and remote capabilities to explain which transports and actions are mutually available. A capability match never bypasses pairing, authorization, permission checks, or explicit consent.
+
 ## User interface and visual design
 
 - Adopt a polished Material 3 visual language, aiming for Material 3 Expressive where the Android UI toolkit and dependency versions support it.
@@ -81,8 +91,7 @@ The media use case is remote control of playback on the other device (for exampl
 - RTL languages (including Arabic and Hebrew), and non-European language packs such as Chinese, Japanese, and Hindi, are explicitly out of scope for the initial product phase. Do not add RTL-specific layout complexity now; keep the UI structured so this can be reconsidered deliberately later.
 - Keep all user-facing strings in Android resources; no UI text hard-coded in Kotlin.
 - Support Android per-app language preferences and an in-app language selector if appropriate. Changing language must not change protocol identifiers, stored peer IDs, or data formats.
-- Prepare the resource structure for additional widely used languages, prioritizing Spanish, French, German, Portuguese (including Brazilian Portuguese), Chinese (Simplified), Japanese, Arabic, and Hindi based on translation quality and demand.
-- Handle plural rules, date/time/number formatting, long translated labels, font coverage, and right-to-left layouts. Russian requires correct plural forms; Arabic requires RTL testing.
+- Handle plural rules, date/time/number formatting, long translated labels, and font coverage. Russian requires correct plural forms. Test layouts with long European translations and larger font settings.
 - Use stable string resource names and translator comments with context. Keep protocol logs and diagnostic identifiers separate from localized UI labels.
 
 ## Delivery order
