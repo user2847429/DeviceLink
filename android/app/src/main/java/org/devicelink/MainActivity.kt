@@ -21,6 +21,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import org.devicelink.core.peer.PeerService
+import org.devicelink.core.device.AndroidDeviceCapabilityScanner
 
 /**
  * Initial DeviceLink controls and mDNS peer discovery UI. Peer connections are not implemented yet.
@@ -136,9 +137,50 @@ class MainActivity : Activity() {
         addText(root, "Gestisci le autorizzazioni e le funzioni locali di DeviceLink.")
         addButton(root, "Controllo permessi") { showPermissionScreen() }
         addButton(root, "Dispositivi") { requestLocalNetworkPermissionAndDiscover() }
+        addButton(root, "Capacità del dispositivo") { showDeviceCapabilities() }
         addButton(root, "App installate") { showInstalledApps() }
         addButton(root, "Impostazioni Android") { openAppSettings() }
         addButton(root, "Torna alla schermata principale") { showHome() }
+        setContentView(root)
+    }
+
+    private fun showDeviceCapabilities() {
+        unregisterPeerReceiver()
+        showingPermissionScreen = false
+        root = createRoot()
+        addText(root, "Capacità del dispositivo", 24f)
+        addText(
+            root,
+            "Funzioni hardware dichiarate da Android per questo dispositivo. La presenza di una funzione non significa che sia attiva o disponibile in ogni momento."
+        )
+
+        val capabilities = AndroidDeviceCapabilityScanner.scan(this)
+        val scrollView = ScrollView(this)
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scrollView.addView(content)
+        root.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+
+        capabilities.groupBy { it.category }.forEach { (category, items) ->
+            addText(content, category, 20f)
+            items.forEach { item ->
+                val state = when (item.supported) {
+                    true -> "Supportato"
+                    false -> "Non rilevato"
+                    null -> "Non determinabile"
+                }
+                addText(content, "${item.name}: $state", 16f)
+                addText(content, item.detail, 13f)
+            }
+        }
+
+        addText(
+            content,
+            "Nota: le bande Wi-Fi non identificano da sole lo standard 802.11 esatto. Wi-Fi Direct, Bluetooth e BLE saranno mostrati come capacità del dispositivo; lo stato radio e i profili disponibili richiederanno verifiche aggiuntive e i relativi permessi."
+        )
+        addButton(root, "Aggiorna") { showDeviceCapabilities() }
+        addButton(root, "Indietro") { showSettings() }
         setContentView(root)
     }
 
