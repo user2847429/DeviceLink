@@ -63,6 +63,7 @@ class TrustedPeerTlsServerInstrumentedTest {
             }
 
             try {
+                var clientPairingCode: String? = null
                 val serverFuture = executor.submit<String> {
                     serverSocket.accept().use { accepted ->
                         AndroidTlsSession.acceptTrusted(serverFactory, accepted).use { session ->
@@ -101,12 +102,13 @@ class TrustedPeerTlsServerInstrumentedTest {
                     InetAddress.getLoopbackAddress().hostAddress ?: "127.0.0.1",
                     serverSocket.localPort
                 ).use { session ->
-                    val clientPairingCode = PairingConfirmationCode.derive(
+                    val clientCode = PairingConfirmationCode.derive(
                         session.exportPairingMaterial(exporterContext),
                         clientIdentity.peerId,
                         session.peerId,
                         sessionNonce
                     )
+                    clientPairingCode = clientCode
                     val changedContext = exporterContext.clone().also { it[0] = (it[0].toInt() xor 1).toByte() }
                     val changedContextCode = PairingConfirmationCode.derive(
                         session.exportPairingMaterial(changedContext),
@@ -114,7 +116,7 @@ class TrustedPeerTlsServerInstrumentedTest {
                         session.peerId,
                         sessionNonce
                     )
-                    assertNotEquals("Exporter context must affect the derived pairing code.", clientPairingCode, changedContextCode)
+                    assertNotEquals("Exporter context must affect the derived pairing code.", clientCode, changedContextCode)
                     AuthenticatedControlChannel.establish(
                         session,
                         clientIdentity.peerId
@@ -134,7 +136,7 @@ class TrustedPeerTlsServerInstrumentedTest {
                     }
                 }
 
-                assertEquals(clientPairingCode, serverFuture.get(20, TimeUnit.SECONDS))
+                assertEquals(requireNotNull(clientPairingCode), serverFuture.get(20, TimeUnit.SECONDS))
             } finally {
                 serverSocket.close()
             }
