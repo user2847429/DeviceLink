@@ -123,6 +123,73 @@ class TrustedPeerTlsServerInstrumentedTest {
         }
     }
 
+
+    @Test
+    fun serverRejectsClientIdentityMissingFromTrustedRegistry() {
+        val suffix = System.nanoTime().toString()
+        val clientAlias = "devicelink.test.untrusted-client.$suffix"
+        val serverAlias = "devicelink.test.untrusted-server.$suffix"
+        val clientIdentityStore = DeviceIdentityStore(clientAlias)
+        val serverIdentityStore = DeviceIdentityStore(serverAlias)
+        val repository = object : TrustedPeerRepository {
+            override fun find(peerId: String): TrustedPeerRecord? = null
+            override fun all(): List<TrustedPeerRecord> = emptyList()
+            override fun put(record: TrustedPeerRecord) = Unit
+            override fun remove(peerId: String): Boolean = false
+        }
+        val registry = TrustedPeerRegistry(repository)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            val clientIdentity = clientIdentityStore.getOrCreateIdentity()
+            val serverIdentity = serverIdentityStore.getOrCreateIdentity()
+            val clientFactory = AndroidTlsSocketFactory(
+                expectedPeerId = serverIdentity.peerId,
+                expectedPeerPublicKeyEncoded = serverIdentity.publicKeyEncoded,
+                identityStore = clientIdentityStore
+            )
+            val serverFactory = AndroidTlsSocketFactory.forTrustedPeers(
+                registry = registry,
+                identityStore = serverIdentityStore
+            )
+            val serverSocket = ServerSocket(0, 1, InetAddress.getLoopbackAddress()).apply {
+                soTimeout = 15_000
+            }
+
+            try {
+                val serverFuture = executor.submit<Boolean> {
+                    serverSocket.accept().use { accepted ->
+                        runCatching {
+                            AndroidTlsSession.acceptTrusted(serverFactory, accepted).use { session ->
+                                session.peerId
+                            }
+                        }.isFailure
+                    }
+                }
+
+                val clientRejected = runCatching {
+                    AndroidTlsSession.connect(
+                        clientFactory,
+                        serverIdentity.peerId,
+                        serverIdentity.publicKeyEncoded,
+                        InetAddress.getLoopbackAddress().hostAddress ?: "127.0.0.1",
+                        serverSocket.localPort
+                    ).use { }
+                }.isFailure
+
+                assertEquals("Untrusted client must fail its TLS handshake.", true, clientRejected)
+                assertEquals("Server must reject a client absent from its trusted registry.", true,
+                    serverFuture.get(20, TimeUnit.SECONDS))
+            } finally {
+                serverSocket.close()
+            }
+        } finally {
+            executor.shutdownNow()
+            deleteKey(clientAlias)
+            deleteKey(serverAlias)
+        }
+    }
+
     private fun deleteKey(alias: String) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
         keyStore.load(null)
